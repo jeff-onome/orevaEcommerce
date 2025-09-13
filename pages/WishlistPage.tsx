@@ -6,8 +6,7 @@ import ProductCard from '../components/ProductCard';
 import Button from '../components/Button';
 
 const WishlistPage: React.FC = () => {
-  const { state } = useAppContext();
-  const { wishlist, products } = state;
+  const { wishlist, products } = useAppContext();
 
   const wishlistProducts = products.filter(p => wishlist.includes(p.id));
 

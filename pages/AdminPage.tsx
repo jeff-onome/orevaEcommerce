@@ -93,8 +93,6 @@ const AdminPage: React.FC = () => {
   const [imageToCrop, setImageToCrop] = useState<string | null>(null);
   const [cropConfig, setCropConfig] = useState<{ callback: (img: string) => void; aspectRatio?: number } | null>(null);
 
-  if (!initialSiteContent) return null; // Should be handled by global loader
-
   const handleSearchChange = (tab: AdminTab, query: string) => {
     setSearchQueries(prev => ({ ...prev, [tab]: query }));
   };
@@ -710,7 +708,7 @@ const AdminPage: React.FC = () => {
                                                 </div>
                                             </div>
                                             <div className="flex gap-2">
-                                                <Button onClick={() => { setEditingTeamMember(member); setIsTeamMemberModalOpen(true); }}>Edit</Button>
+                                                <Button variant="secondary" onClick={() => { setEditingTeamMember(member); setIsTeamMemberModalOpen(true); }}>Edit</Button>
                                                 <Button variant="danger" onClick={() => handleDeleteTeamMember(member.id)}>Delete</Button>
                                             </div>
                                         </div>
