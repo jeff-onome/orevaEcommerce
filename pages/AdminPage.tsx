@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AdminTab, Product, Profile, ThemeColors, Order, Promotion, OrderItem, TeamMember } from '../types';
 import { useAppContext } from '../context/AppContext';
 import Button from '../components/Button';
@@ -53,6 +53,20 @@ const AdminPage: React.FC = () => {
       secondary: initialSiteContent?.theme_secondary || '#ffab40',
       accent: initialSiteContent?.theme_accent || '#f50057'
   });
+
+  // Effect to sync local state with the global context state when it updates
+  useEffect(() => {
+    if (initialSiteContent) {
+      setSiteContent(initialSiteContent);
+      setTeamMembers(initialSiteContent.team_members || []);
+      setThemeColors({
+        primary: initialSiteContent.theme_primary || '#1a237e',
+        secondary: initialSiteContent.theme_secondary || '#ffab40',
+        accent: initialSiteContent.theme_accent || '#f50057',
+      });
+    }
+  }, [initialSiteContent]);
+
 
   // Team Member Modal State
   const [isTeamMemberModalOpen, setIsTeamMemberModalOpen] = useState(false);
@@ -112,7 +126,13 @@ const AdminPage: React.FC = () => {
   };
 
   const handleContentSave = async () => {
-      const contentToSave = { ...siteContent, ...themeColors };
+      if (!siteContent) return;
+      const contentToSave = { 
+        ...siteContent, 
+        theme_primary: themeColors.primary,
+        theme_secondary: themeColors.secondary,
+        theme_accent: themeColors.accent,
+      };
       await updateSiteContent(contentToSave);
       await updateTeamMembers(teamMembers);
       alert('Site content and team updated successfully!');
@@ -233,7 +253,7 @@ const AdminPage: React.FC = () => {
 
     const newTeamMembers = [...teamMembers];
     
-    if ('id' in editingTeamMember) { // Editing existing
+    if ('id' in editingTeamMember && typeof editingTeamMember.id === 'number' && editingTeamMember.id < Date.now()) { // Editing existing
         const index = newTeamMembers.findIndex(m => m.id === editingTeamMember.id);
         if (index > -1) {
             newTeamMembers[index] = editingTeamMember as TeamMember;
@@ -262,17 +282,17 @@ const AdminPage: React.FC = () => {
         );
         return (
           <div>
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
               <h3 className="text-2xl font-semibold">Manage Products</h3>
-               <div className="flex items-center gap-4">
+               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full md:w-auto">
                 <input
                   type="text"
                   placeholder="Search products by name..."
                   value={searchQueries[AdminTab.PRODUCTS]}
                   onChange={(e) => handleSearchChange(AdminTab.PRODUCTS, e.target.value)}
-                  className="w-64 p-2 border border-gray-300 rounded-md shadow-sm"
+                  className="w-full md:w-64 p-2 border border-gray-300 rounded-md shadow-sm"
                 />
-                <Button onClick={() => setIsAddModalOpen(true)}>Add New Product</Button>
+                <Button onClick={() => setIsAddModalOpen(true)} className="w-full sm:w-auto justify-center">Add New Product</Button>
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -304,17 +324,17 @@ const AdminPage: React.FC = () => {
         );
         return (
             <div>
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                     <h3 className="text-2xl font-semibold">Manage Categories</h3>
-                     <div className="flex items-center gap-4">
+                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full md:w-auto">
                         <input
                             type="text"
                             placeholder="Search categories..."
                             value={searchQueries[AdminTab.CATEGORIES]}
                             onChange={(e) => handleSearchChange(AdminTab.CATEGORIES, e.target.value)}
-                            className="w-64 p-2 border border-gray-300 rounded-md shadow-sm"
+                            className="w-full md:w-64 p-2 border border-gray-300 rounded-md shadow-sm"
                         />
-                        <Button onClick={() => setIsAddCategoryModalOpen(true)}>Add New Category</Button>
+                        <Button onClick={() => setIsAddCategoryModalOpen(true)} className="w-full sm:w-auto justify-center">Add New Category</Button>
                     </div>
                 </div>
                 <div className="overflow-x-auto">
@@ -373,14 +393,14 @@ const AdminPage: React.FC = () => {
         );
         return (
           <div>
-             <div className="flex justify-between items-center mb-6">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                 <h3 className="text-2xl font-semibold">Manage Users</h3>
                 <input
                     type="text"
                     placeholder="Search by name..."
                     value={searchQueries[AdminTab.USERS]}
                     onChange={(e) => handleSearchChange(AdminTab.USERS, e.target.value)}
-                    className="w-64 p-2 border border-gray-300 rounded-md shadow-sm"
+                    className="w-full md:w-64 p-2 border border-gray-300 rounded-md shadow-sm"
                 />
             </div>
             <div className="overflow-x-auto">
@@ -425,14 +445,14 @@ const AdminPage: React.FC = () => {
         );
         return (
           <div>
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                 <h3 className="text-2xl font-semibold">Manage Orders</h3>
                 <input
                     type="text"
                     placeholder="Search by ID or name..."
                     value={searchQueries[AdminTab.ORDERS]}
                     onChange={(e) => handleSearchChange(AdminTab.ORDERS, e.target.value)}
-                    className="w-64 p-2 border border-gray-300 rounded-md shadow-sm"
+                    className="w-full md:w-64 p-2 border border-gray-300 rounded-md shadow-sm"
                 />
             </div>
             <div className="overflow-x-auto">
