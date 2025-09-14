@@ -21,7 +21,8 @@ interface AppState {
   profile: Profile | null;
   
   // App Status
-  loading: boolean;
+  loading: boolean; // For the initial, very brief session check
+  dataLoading: boolean; // For fetching products, categories, etc.
   error: Error | null;
 }
 
@@ -74,67 +75,44 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     user: null,
     profile: null,
     loading: true,
+    dataLoading: true,
     error: null,
   });
 
+  const fetchProfile = async (userId: string) => {
+    const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+    if (error) console.error("Error fetching profile:", error);
+    setState(s => ({ ...s, profile: profile || null }));
+  };
+
   // --- AUTH & PROFILE MANAGEMENT ---
   useEffect(() => {
-    // Check active session on initial load
     const getSession = async () => {
         const { data: { session } } = await supabase.auth.getSession();
-        
-        let profileData: Profile | null = null;
+        // Set loading to false immediately after session check for faster app shell render
+        setState(s => ({ ...s, session, user: session?.user ?? null, loading: false }));
         if (session?.user) {
-            const { data: profile, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', session.user.id)
-                .single();
-            if (error) console.error("Error fetching profile on initial load:", error);
-            profileData = profile || null;
+            await fetchProfile(session.user.id);
         }
-        
-        // Set all auth-related state at once to avoid race conditions
-        setState(s => ({ 
-            ...s, 
-            session, 
-            user: session?.user ?? null,
-            profile: profileData,
-            loading: false // Initial load is now complete
-        }));
     };
     
     getSession();
 
-    // Listen for auth state changes (login/logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setState(s => ({ ...s, session, user: session?.user ?? null }));
       if (session?.user) {
-        // User logged in
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-        if (error) console.error("Error fetching profile on auth change:", error);
-        setState(s => ({ ...s, session, user: session.user, profile: profile || null }));
+        await fetchProfile(session.user.id);
       } else {
-        // User logged out - clear all user-specific state
-        setState(s => ({ 
-          ...s, 
-          session: null, 
-          user: null, 
-          profile: null, 
-          cart: [], 
-          wishlist: [], 
-          orders: [],
-          users: []
-        }));
+        setState(s => ({ ...s, profile: null, cart: [], wishlist: [], orders: [], users: [] }));
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
-
 
   // --- DATA FETCHING ---
   useEffect(() => {
@@ -156,7 +134,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           supabase.from('reviews').select('*'),
         ]);
 
-        // Centralized error checking to ensure all fetches succeed
         const results = [
           { name: 'products', ...productsRes },
           { name: 'categories', ...categoriesRes },
@@ -168,7 +145,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         for (const res of results) {
           if (res.error) {
-            // Throw a more informative error
             throw new Error(`Failed to fetch ${res.name}: ${res.error.message}`);
           }
         }
@@ -192,17 +168,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } catch (err: unknown) {
         let error: Error;
         if (err instanceof Error) {
-          // This will catch the custom error thrown from the try block
           error = err;
         } else if (typeof err === 'object' && err !== null && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
-          // This will catch Supabase errors or other error-like objects
           error = new Error(`An error occurred: ${(err as { message: string }).message}`);
         } else {
-          // Fallback for other types of errors (e.g., network errors)
           error = new Error('An unexpected error occurred while fetching initial data.');
         }
         console.error("Error fetching initial data:", error);
-        setState(s => ({ ...s, error: error, loading: false }));
+        setState(s => ({ ...s, error: error }));
+      } finally {
+        setState(s => ({ ...s, dataLoading: false }));
       }
     };
     fetchInitialData();
@@ -222,9 +197,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               supabase.from('orders').select('*, order_items(*, products(*)), profiles(*)').eq('user_id', state.user!.id).order('created_at', { ascending: false }),
             ]);
 
-            // FIX: Filter out cart items where the associated product has been deleted to prevent crashes.
             const cartItems: CartItem[] = (cartData || [])
-              .filter(item => item.products) // Ensure product exists
+              .filter(item => item.products)
               .map(item => ({
                 ...(item.products as Product),
                 quantity: item.quantity,
@@ -260,7 +234,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     ).select('*, products(*)').single();
 
     if (error) { console.error(error); return; }
-    // FIX: Add a check to ensure the product data exists before creating the cart item.
     if (!data?.products) return; 
 
     const updatedItem: CartItem = { ...(data.products as Product), quantity: data.quantity };
@@ -283,7 +256,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
      const { data, error } = await supabase.from('cart_items').update({ quantity }).match({ user_id: state.user.id, product_id: productId }).select('*, products(*)').single();
      if (error) { console.error(error); return; }
 
-     // FIX: Add a check to ensure product data exists before updating the cart.
      if (!data?.products) return;
 
      const updatedItem: CartItem = { ...(data.products as Product), quantity: data.quantity };
@@ -315,7 +287,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const placeOrder = async (items: CartItem[], total: number) => {
     if (!state.user) return null;
     
-    // 1. Create the order
     const { data: orderData, error: orderError } = await supabase.from('orders')
       .insert({ user_id: state.user.id, total, status: 'Processing' })
       .select()
@@ -326,7 +297,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return null;
     }
 
-    // 2. Create the order items
     const orderItems = items.map(item => ({
       order_id: orderData.id,
       product_id: item.id,
@@ -339,14 +309,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     
     if (itemsError) {
       console.error(itemsError);
-      // TODO: Handle potential rollback
       return null;
     }
 
-    // 3. Clear cart
     await clearCart();
 
-    // 4. Refetch orders and return new order
     const { data: newOrderData } = await supabase.from('orders').select('*, order_items(*, products(*)), profiles(*)').eq('id', orderData.id).single();
     if(newOrderData) setState(s => ({ ...s, orders: [newOrderData as any, ...s.orders] }));
     return newOrderData as any;
@@ -397,8 +364,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updateCategory = async (id: number, oldName: string, newName: string) => {
-    // This is a complex operation. A database function (RPC) would be better in a real app.
-    // For now, we update the category table and then loop through products.
     const { error: catError } = await supabase.from('categories').update({ name: newName }).eq('id', id);
     if (catError) { console.error(catError); return; }
 
@@ -408,7 +373,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         await supabase.from('products').update({ categories: newCategories }).eq('id', p.id);
     }
     
-    // Refresh all data as a simple way to reflect changes
     const { data: products } = await supabase.from('products').select('*');
     const { data: categories } = await supabase.from('categories').select('*');
     setState(s => ({ ...s, products: products || [], categories: categories || [] }));
@@ -443,24 +407,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const { team_members, ...contentData } = content;
     const { data, error } = await supabase.from('site_content').update(contentData).eq('id', 1).select().single();
     if(error) { console.error(error); return; }
-    if (data) {
-      setState(s => {
-        // FIX: Use the state from the callback `s` to avoid stale state issues.
-        // This ensures that when site content (like theme colors) is saved,
-        // it doesn't accidentally overwrite other parts of the siteContent state
-        // (like recently updated team members) with old data.
-        if (s.siteContent) {
-          return { ...s, siteContent: { ...s.siteContent, ...data } };
-        }
-        return s; // Should not happen if app is loaded, but a good safeguard.
-      });
-    }
+    if(data && state.siteContent) setState(s => ({...s, siteContent: {...s.siteContent!, ...data} as SiteContent}));
   };
   
   const updateTeamMembers = async (members: TeamMember[]) => {
       if(!state.siteContent) return;
-      // Simple approach: delete all and re-insert
-      const { error: deleteError } = await supabase.from('team_members').delete().neq('id', 0); // delete all
+      const { error: deleteError } = await supabase.from('team_members').delete().neq('id', 0);
       if (deleteError) { console.error(deleteError); return; }
       
       const newMembers = members.map(({ id, ...rest }) => rest);

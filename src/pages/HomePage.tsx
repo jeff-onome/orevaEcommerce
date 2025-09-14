@@ -4,7 +4,9 @@ import { useAppContext } from '../context/AppContext';
 import ProductCard from '../components/ProductCard';
 import ImageSlider from '../components/ImageSlider';
 import PromotionSlider from '../components/PromotionSlider';
+import SocialPostCard from '../components/SocialPostCard';
 import SalesBanner from '../components/SalesBanner';
+import Spinner from '../components/Spinner';
 
 // Icons for TrustBadges
 const SecurePaymentIcon = () => (
@@ -26,13 +28,26 @@ const ShippingIcon = () => (
     </svg>
 );
 
+const mockSocialPosts = [
+    { id: 1, platform: 'instagram' as const, imageUrl: 'https://picsum.photos/seed/social1/500/500', caption: 'Loving the crystal clear sound from my new Acoustic Bliss Headphones! #audiophile #music', productId: 2 },
+    { id: 2, platform: 'tiktok' as const, imageUrl: 'https://picsum.photos/seed/social2/500/500', caption: 'Unboxing the Quantum Laptop Pro. This thing is a beast! #techtok #unboxing', productId: 1 },
+    { id: 3, platform: 'instagram' as const, imageUrl: 'https://picsum.photos/seed/social3/500/500', caption: 'My new weekend adventure buddy. This Leather Weekend Bag is a game-changer. #travel #style', productId: 11 },
+    { id: 4, platform: 'instagram' as const, imageUrl: 'https://picsum.photos/seed/social4/500/500', caption: 'Hitting my fitness goals with the Pro-Grip Dumbbell Set. #homegym #workout', productId: 9 },
+];
+
 const HomePage: React.FC = () => {
-  const { products, promotions, categories, siteContent } = useAppContext();
+  const { products, promotions, categories, siteContent, dataLoading } = useAppContext();
   const sliderProducts = products.slice(0, 5);
   const activePromotions = promotions.filter(p => p.is_active);
 
   // For category highlights
   const highlightedCategories = ['Electronics', 'Apparel', 'Home Goods', 'Fitness'];
+  const categoryImages: { [key: string]: string } = {
+    'Electronics': 'https://picsum.photos/seed/cat_electronics/600/400',
+    'Apparel': 'https://picsum.photos/seed/cat_apparel/600/400',
+    'Home Goods': 'https://picsum.photos/seed/cat_home/600/400',
+    'Fitness': 'https://picsum.photos/seed/cat_fitness/600/400',
+  };
 
   return (
     <>
@@ -59,8 +74,15 @@ const HomePage: React.FC = () => {
                     to={`/shop?category=${encodeURIComponent(category)}`}
                     className="block group relative rounded-lg overflow-hidden shadow-lg hover:shadow-2xl transition-shadow duration-300"
                   >
-                    <div className="w-full h-48 bg-primary group-hover:bg-indigo-800 transition-colors duration-300 flex items-center justify-center p-4">
-                      <h3 className="text-white text-2xl font-bold text-center">{category}</h3>
+                    <img
+                      src={categoryImages[category]}
+                      alt={category}
+                      className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-300"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                    <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+                      <h3 className="text-white text-2xl font-bold">{category}</h3>
                     </div>
                   </Link>
                 )
@@ -72,11 +94,15 @@ const HomePage: React.FC = () => {
 
         <section>
           <h2 className="text-2xl md:text-3xl font-bold text-center mb-8">Featured Products</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-24 pt-16">
-            {products.slice(0, 6).map(product => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
+          {dataLoading ? (
+            <Spinner />
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-24 pt-16">
+              {products.slice(0, 6).map(product => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Trust & Security Badges Section */}
@@ -114,6 +140,16 @@ const HomePage: React.FC = () => {
             />
           </section>
         )}
+
+        {/* Social Media Feed Section */}
+        <section>
+            <h2 className="text-2xl md:text-3xl font-bold text-center mb-8">Shop Our Feed</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {mockSocialPosts.map(post => (
+                    <SocialPostCard key={post.id} post={post} />
+                ))}
+            </div>
+        </section>
       </div>
     </>
   );

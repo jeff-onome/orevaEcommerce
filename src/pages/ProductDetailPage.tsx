@@ -1,15 +1,24 @@
-
 import React from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import Button from '../components/Button';
 import SocialShareButtons from '../components/SocialShareButtons';
 import { Product } from '../types';
+import Spinner from '../components/Spinner';
 
 const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { products, wishlist, session, addToCart, toggleWishlist } = useAppContext();
+  const { products, wishlist, session, addToCart, toggleWishlist, dataLoading } = useAppContext();
+  
+  if (dataLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-[50vh]">
+        <Spinner />
+      </div>
+    );
+  }
+
   const product = products.find(p => p.id === Number(id));
   const isInWishlist = product ? wishlist.includes(product.id) : false;
 
