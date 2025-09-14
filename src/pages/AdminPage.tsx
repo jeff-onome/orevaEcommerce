@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useMemo } from 'react';
 import { AdminTab, Product, Profile, ThemeColors, Order, Promotion, OrderItem, TeamMember, SiteContent } from '../types';
 import { useAppContext } from '../context/AppContext';
 import Button from '../components/Button';
@@ -7,6 +8,18 @@ import AdminProductForm from '../components/AdminProductForm';
 import Modal from '../components/Modal';
 import SimpleBarChart from '../components/SimpleBarChart';
 import AdminPromotionForm from '../components/AdminPromotionForm';
+
+const AnalyticsStatCard: React.FC<{ title: string; value: string; icon: React.ReactNode }> = ({ title, value, icon }) => (
+    <div className="bg-gray-50 p-6 rounded-lg flex items-center space-x-4 shadow-sm">
+        <div className="bg-primary/10 text-primary p-3 rounded-full">
+            {icon}
+        </div>
+        <div>
+            <p className="text-sm text-gray-500">{title}</p>
+            <p className="text-2xl font-bold">{value}</p>
+        </div>
+    </div>
+);
 
 const AdminPage: React.FC = () => {
   const { 
@@ -53,8 +66,6 @@ const AdminPage: React.FC = () => {
       secondary: initialSiteContent?.theme_secondary || '#ffab40',
       accent: initialSiteContent?.theme_accent || '#f50057'
   });
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Effect to sync local state with the global context state when it updates
   useEffect(() => {
@@ -142,26 +153,16 @@ const AdminPage: React.FC = () => {
   };
 
   const handleContentSave = async () => {
-    if (!siteContent || isSaving) return;
-    setIsSaving(true);
-    setSaveSuccess(false);
-    try {
-        const contentToSave = {
-            ...siteContent,
-            theme_primary: themeColors.primary,
-            theme_secondary: themeColors.secondary,
-            theme_accent: themeColors.accent,
-        };
-        await updateSiteContent(contentToSave);
-        await updateTeamMembers(teamMembers);
-        setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 3000); // Hide message after 3 seconds
-    } catch (error) {
-        console.error("Failed to save site content:", error);
-        alert("An error occurred while saving. Please check the console and try again.");
-    } finally {
-        setIsSaving(false);
-    }
+      if (!siteContent) return;
+      const contentToSave = { 
+        ...siteContent, 
+        theme_primary: themeColors.primary,
+        theme_secondary: themeColors.secondary,
+        theme_accent: themeColors.accent,
+      };
+      await updateSiteContent(contentToSave);
+      await updateTeamMembers(teamMembers);
+      alert('Site content and team updated successfully!');
   };
 
   const handleEditCategory = (id: number, name: string) => {
@@ -171,7 +172,7 @@ const AdminPage: React.FC = () => {
   
   const handleAddCategory = () => {
     if (newCategoryName.trim()) {
-        addCategory(newCategoryName.trim());
+        addCategory({name: newCategoryName.trim()});
         setNewCategoryName('');
         setIsAddCategoryModalOpen(false);
     }
@@ -192,7 +193,7 @@ const AdminPage: React.FC = () => {
 
   const handleUpdateCategory = () => {
     if (editingCategory && editingCategory.oldName && editingCategory.newName && editingCategory.oldName !== editingCategory.newName) {
-        updateCategory(editingCategory.id, editingCategory.oldName, editingCategory.newName);
+        updateCategory({ id: editingCategory.id, name: editingCategory.newName});
     }
     setIsEditCategoryModalOpen(false);
     setEditingCategory(null);
@@ -297,6 +298,66 @@ const AdminPage: React.FC = () => {
         setTeamMembers(updatedMembers);
     }
   };
+
+  // --- ANALYTICS DATA CALCULATION ---
+  const analyticsData = useMemo(() => {
+    const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0);
+    const totalOrders = orders.length;
+    const totalCustomers = users.filter(u => !u.is_admin).length;
+    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+    
+    return {
+      totalRevenue,
+      totalOrders,
+      totalCustomers,
+      avgOrderValue,
+    };
+  }, [orders, users]);
+  
+  const salesLast7DaysData = useMemo(() => {
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        return d;
+    }).reverse();
+
+    return last7Days.map(date => {
+        const dayLabel = date.toLocaleDateString('en-US', { weekday: 'short' });
+        const dayStart = new Date(date.setHours(0, 0, 0, 0)).toISOString();
+        const dayEnd = new Date(date.setHours(23, 59, 59, 999)).toISOString();
+
+        const total = orders
+            .filter(o => o.created_at && o.created_at >= dayStart && o.created_at <= dayEnd)
+            .reduce((sum, o) => sum + o.total, 0);
+        
+        return { label: dayLabel, value: Math.round(total) };
+    });
+  }, [orders]);
+  
+  const topSellingProductsData = useMemo(() => {
+    const productSales = new Map<number, { name: string; quantity: number }>();
+    
+    orders.forEach(order => {
+        order.items.forEach(item => {
+            const existing = productSales.get(item.product_id);
+            const productName = item.products?.name || 'Unknown Product';
+            productSales.set(item.product_id, {
+                name: productName,
+                quantity: (existing?.quantity || 0) + item.quantity,
+            });
+        });
+    });
+
+    return Array.from(productSales.values())
+        .sort((a, b) => b.quantity - a.quantity)
+        .slice(0, 5)
+        .map(p => ({ label: p.name, value: p.quantity }));
+  }, [orders]);
+  
+  const lowStockProducts = useMemo(() => {
+    return products.filter(p => p.stock < 10).sort((a, b) => a.stock - b.stock);
+  }, [products]);
+
 
   const renderContent = () => {
     switch (activeTab) {
@@ -534,32 +595,65 @@ const AdminPage: React.FC = () => {
           </div>
         );
     case AdminTab.ANALYTICS:
-        const pageViewData = [
-            { label: 'Home', value: 1200 },
-            { label: 'Shop', value: 950 },
-            { label: 'Laptop', value: 800 },
-            { label: 'Contact', value: 450 },
-            { label: 'About', value: 300 },
-        ];
+        const CurrencyIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>);
+        const OrdersIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>);
+        const UsersIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M15 21a6 6 0 00-9-5.197m0 0A5.965 5.965 0 0112 13a5.965 5.965 0 013 1.197" /></svg>);
+
+        if (orders.length === 0) {
+            return (
+                <div className="text-center py-16">
+                    <h3 className="text-2xl font-semibold text-gray-700">No Analytics Data Yet</h3>
+                    <p className="text-gray-500 mt-2">Check back after you've made some sales.</p>
+                </div>
+            )
+        }
         return (
             <div>
                 <h3 className="text-2xl font-semibold mb-6">Store Analytics</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="bg-gray-50 p-6 rounded-lg">
-                        <h4 className="text-lg font-bold mb-4">Most Viewed Pages</h4>
-                        <SimpleBarChart data={pageViewData} />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <AnalyticsStatCard title="Total Revenue" value={`₦${analyticsData.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<CurrencyIcon />} />
+                    <AnalyticsStatCard title="Total Orders" value={analyticsData.totalOrders.toLocaleString()} icon={<OrdersIcon />} />
+                    <AnalyticsStatCard title="Total Customers" value={analyticsData.totalCustomers.toLocaleString()} icon={<UsersIcon />} />
+                    <AnalyticsStatCard title="Avg. Order Value" value={`₦${analyticsData.avgOrderValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<CurrencyIcon />} />
+                </div>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                    <div className="bg-surface p-6 rounded-lg shadow-sm">
+                        <h4 className="text-lg font-bold mb-4">Sales Over Last 7 Days (₦)</h4>
+                        <SimpleBarChart data={salesLast7DaysData} />
                     </div>
-                    <div className="bg-gray-50 p-6 rounded-lg">
-                         <h4 className="text-lg font-bold mb-4">Top Selling Products</h4>
-                         <ul className="space-y-3">
-                             {products.slice(0,5).map((p, i) => (
-                                 <li key={p.id} className="flex justify-between">
-                                     <span>{i+1}. {p.name}</span>
-                                     <span className="font-semibold">{15 - i} sales</span>
-                                 </li>
-                             ))}
-                         </ul>
+                    <div className="bg-surface p-6 rounded-lg shadow-sm">
+                        <h4 className="text-lg font-bold mb-4">Top 5 Selling Products (Units)</h4>
+                        <SimpleBarChart data={topSellingProductsData} />
                     </div>
+                </div>
+                
+                <div>
+                    <h4 className="text-lg font-bold mb-4">Low Stock Alerts (under 10 units)</h4>
+                    {lowStockProducts.length > 0 ? (
+                        <div className="overflow-x-auto bg-surface rounded-lg shadow-sm">
+                            <table className="min-w-full bg-white">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600">Product Name</th>
+                                        <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600">Stock Remaining</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {lowStockProducts.map(product => (
+                                        <tr key={product.id} className="border-t">
+                                            <td className="py-3 px-4">{product.name}</td>
+                                            <td className="py-3 px-4"><span className="font-bold text-accent">{product.stock}</span></td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="bg-surface p-6 rounded-lg shadow-sm text-center text-gray-500">
+                            No products with low stock. Great job!
+                        </div>
+                    )}
                 </div>
             </div>
         )
@@ -675,15 +769,15 @@ const AdminPage: React.FC = () => {
                                     placeholder="EShopPro"
                                 />
                             </div>
-                            <div>
-                                <label htmlFor="whatsappHandle" className="block text-sm font-medium text-gray-700">WhatsApp Number (e.g., 2348012345678)</label>
+                             <div>
+                                <label htmlFor="twitterHandle" className="block text-sm font-medium text-gray-700">Twitter Handle (without @)</label>
                                 <input 
                                     type="text" 
-                                    id="whatsappHandle" 
-                                    value={siteContent.social_whatsapp || ''} 
-                                    onChange={(e) => handleSiteContentChange('social_whatsapp', e.target.value)} 
+                                    id="twitterHandle" 
+                                    value={siteContent.social_twitter || ''} 
+                                    onChange={(e) => handleSiteContentChange('social_twitter', e.target.value)} 
                                     className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm"
-                                    placeholder="2348012345678"
+                                    placeholder="EShopPro"
                                 />
                             </div>
                             <div>
@@ -695,6 +789,17 @@ const AdminPage: React.FC = () => {
                                     onChange={(e) => handleSiteContentChange('social_instagram', e.target.value)} 
                                     className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm"
                                     placeholder="EShopPro"
+                                />
+                            </div>
+                             <div>
+                                <label htmlFor="whatsappHandle" className="block text-sm font-medium text-gray-700">WhatsApp Number (e.g., 2348012345678)</label>
+                                <input 
+                                    type="text" 
+                                    id="whatsappHandle" 
+                                    value={siteContent.social_whatsapp || ''} 
+                                    onChange={(e) => handleSiteContentChange('social_whatsapp', e.target.value)} 
+                                    className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                    placeholder="2348012345678"
                                 />
                             </div>
                             <div>
@@ -785,14 +890,7 @@ const AdminPage: React.FC = () => {
                         </div>
                     </div>
 
-                    <Button
-                        onClick={handleContentSave}
-                        isLoading={isSaving}
-                        className={`w-full text-lg py-3 transition-colors ${saveSuccess ? 'bg-green-600 hover:bg-green-700' : ''}`}
-                        disabled={isSaving}
-                    >
-                        {saveSuccess ? 'Saved Successfully!' : 'Save All Changes'}
-                    </Button>
+                    <Button onClick={handleContentSave} className="w-full text-lg py-3">Save All Changes</Button>
                 </div>
             </div>
         );

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import Button from '../Button';
 import { Order } from '../../types';
@@ -23,7 +24,6 @@ const TrackOrder: React.FC = () => {
         const foundOrder = orders.find(o => o.id.toString().slice(-6) === orderIdInput.trim());
 
         if (foundOrder) {
-            // In a real app, you'd also verify this order belongs to the current user
             setSearchedOrder(foundOrder);
         } else {
             setError('Order not found. Please check the ID and try again.');
@@ -49,8 +49,15 @@ const TrackOrder: React.FC = () => {
 
             {searchedOrder && (
                 <div className="bg-gray-50 p-6 rounded-lg animate-fade-in">
-                    <h3 className="text-xl font-semibold mb-2">Order Status for #{searchedOrder.id.toString().slice(-6)}</h3>
-                    <p className="text-gray-600 mb-6">Placed on: {new Date(searchedOrder.created_at!).toLocaleDateString()}</p>
+                    <div className="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 className="text-xl font-semibold">Order Status for #{searchedOrder.id.toString().slice(-6)}</h3>
+                            <p className="text-gray-600 text-sm mt-1">Placed on: {new Date(searchedOrder.created_at!).toLocaleDateString()}</p>
+                        </div>
+                        <Link to={`/orders/${searchedOrder.id}`} className="text-sm text-primary hover:underline font-semibold whitespace-nowrap">
+                            View Full Details
+                        </Link>
+                    </div>
                     <OrderStatusTracker status={searchedOrder.status} />
                 </div>
             )}

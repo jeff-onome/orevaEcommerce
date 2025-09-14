@@ -26,7 +26,7 @@ const WishlistPage = lazy(() => import('./pages/WishlistPage'));
 
 
 const App: React.FC = () => {
-  const { loading, siteContent, profile, session } = useAppContext();
+  const { loading, dataLoading, siteContent, profile, session } = useAppContext();
 
   useEffect(() => {
     if (siteContent) {
@@ -38,7 +38,7 @@ const App: React.FC = () => {
     }
   }, [siteContent]);
 
-  if (loading) {
+  if (loading || dataLoading) {
     return (
       <div className="flex flex-col min-h-screen items-center justify-center">
         <Spinner />

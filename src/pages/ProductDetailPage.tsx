@@ -4,21 +4,11 @@ import { useAppContext } from '../context/AppContext';
 import Button from '../components/Button';
 import SocialShareButtons from '../components/SocialShareButtons';
 import { Product } from '../types';
-import Spinner from '../components/Spinner';
 
 const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { products, wishlist, session, addToCart, toggleWishlist, dataLoading } = useAppContext();
-  
-  if (dataLoading) {
-    return (
-      <div className="flex justify-center items-center min-h-[50vh]">
-        <Spinner />
-      </div>
-    );
-  }
-
+  const { products, wishlist, session, addToCart, toggleWishlist } = useAppContext();
   const product = products.find(p => p.id === Number(id));
   const isInWishlist = product ? wishlist.includes(product.id) : false;
 
@@ -55,6 +45,16 @@ const ProductDetailPage: React.FC = () => {
 
   return (
     <div className="bg-surface p-8 rounded-lg shadow-xl animate-fade-in">
+      <button
+        onClick={() => navigate(-1)}
+        className="flex items-center text-gray-600 hover:text-primary font-semibold mb-6 transition-colors duration-200"
+        aria-label="Go back to previous page"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+        Back
+      </button>
       <div className="grid md:grid-cols-2 gap-12 items-center">
         <div className="animate-slide-in-up">
           <img src={product.image_url || ''} alt={product.name} className="w-full h-auto rounded-lg shadow-lg" />

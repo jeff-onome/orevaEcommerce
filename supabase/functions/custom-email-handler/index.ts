@@ -25,12 +25,12 @@ interface HookPayload {
 
 // Function to generate the HTML for the email
 const createEmailHtml = (siteContent: SiteContent, confirmationUrl: string): string => {
-  const { 
-    site_name = 'E-Shop Pro', 
-    theme_primary = '#1a237e',
-    email_verification_title = 'Verify Your Email',
-    email_verification_body = 'Thanks for signing up! Please click the button below to complete your registration.'
-  } = siteContent;
+  // Use nullish coalescing operator (??) for robust handling of null values from the database.
+  const site_name = siteContent.site_name ?? 'E-Shop Pro';
+  const theme_primary = siteContent.theme_primary ?? '#1a237e';
+  const email_verification_title = siteContent.email_verification_title ?? 'Verify Your Email';
+  const email_verification_body = siteContent.email_verification_body ?? 'Thanks for signing up! Please click the button below to complete your registration.';
+
 
   const currentYear = new Date().getFullYear();
 
@@ -115,7 +115,7 @@ serve(async (req) => {
     
     // This is the response Supabase Auth expects to customize the email
     const responsePayload = {
-      subject: siteContent.email_verification_title || 'Verify Your Email Address',
+      subject: siteContent.email_verification_title ?? 'Verify Your Email Address',
       html_body: emailHtml,
     };
 

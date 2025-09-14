@@ -1,8 +1,7 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Session, User as AuthUser } from '@supabase/supabase-js';
 import { supabase } from '../supabaseClient';
-import { Product, CartItem, Profile, Order, Review, Promotion, Category, SiteContent, TeamMember, TablesInsert } from '../types';
+import { Product, CartItem, Profile, Order, Review, Promotion, Category, SiteContent, TeamMember, TablesInsert, TablesUpdate } from '../types';
 
 interface AppState {
   // Data
@@ -47,8 +46,8 @@ interface AppContextType extends AppState {
   addProduct: (product: Omit<Product, 'id' | 'created_at'>) => Promise<Product | null>;
   updateProduct: (product: Product) => Promise<void>;
   deleteProduct: (productId: number) => Promise<void>;
-  addCategory: (name: string) => Promise<void>;
-  updateCategory: (id: number, oldName: string, newName: string) => Promise<void>;
+  addCategory: (category: TablesInsert<'categories'>) => Promise<void>;
+  updateCategory: (category: TablesUpdate<'categories'> & { id: number; name: string }) => Promise<void>;
   deleteCategory: (id: number) => Promise<void>;
   addPromotion: (promo: Omit<Promotion, 'id'>) => Promise<void>;
   updatePromotion: (promo: Promotion) => Promise<void>;
@@ -93,12 +92,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // --- AUTH & PROFILE MANAGEMENT ---
   useEffect(() => {
     const getSession = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        // Set loading to false immediately after session check for faster app shell render
-        setState(s => ({ ...s, session, user: session?.user ?? null, loading: false }));
+      try {
+        // Add a 5-second timeout to the session fetch to prevent infinite loading on network issues.
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Session check timed out')), 5000)
+        );
+
+        const { data: { session } }: any = await Promise.race([sessionPromise, timeoutPromise]);
+        
+        setState(s => ({ ...s, session, user: session?.user ?? null }));
         if (session?.user) {
             await fetchProfile(session.user.id);
         }
+      } catch(error) {
+        console.error("Error getting session:", error);
+        // Continue execution even if session check fails or times out
+      } finally {
+        // This is crucial to remove the initial loading spinner
+        setState(s => ({ ...s, loading: false }));
+      }
     };
     
     getSession();
@@ -294,7 +307,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       .single();
 
     if (orderError || !orderData) {
-      console.error(orderError);
+      console.error("Order creation failed:", orderError);
       return null;
     }
 
@@ -309,14 +322,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
     
     if (itemsError) {
-      console.error(itemsError);
+      console.error("Order items creation failed:", itemsError);
       return null;
     }
 
     await clearCart();
 
     const { data: newOrderData } = await supabase.from('orders').select('*, order_items(*, products(*)), profiles(*)').eq('id', orderData.id).single();
-    if(newOrderData) setState(s => ({ ...s, orders: [newOrderData as any, ...s.orders] }));
+    if(newOrderData) {
+        setState(s => ({ ...s, orders: [newOrderData as any, ...s.orders] }));
+        
+        // Trigger order confirmation email
+        try {
+            const { error: funcError } = await supabase.functions.invoke('send-order-confirmation', {
+                body: { order: newOrderData },
+            });
+            if (funcError) throw funcError;
+        } catch (error) {
+            console.error('Failed to send order confirmation email:', error);
+            // Non-critical, so we don't block the UI for this
+        }
+    }
     return newOrderData as any;
   };
   
@@ -358,25 +384,36 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setState(s => ({...s, products: s.products.filter(p => p.id !== productId)}));
   };
   
-  const addCategory = async (name: string) => {
-    const { data, error } = await supabase.from('categories').insert({ name }).select().single();
+  const addCategory = async (category: TablesInsert<'categories'>) => {
+    const { data, error } = await supabase.from('categories').insert(category).select().single();
     if (error) { console.error(error); return; }
     if (data) setState(s => ({ ...s, categories: [...s.categories, data].sort((a,b) => a.name.localeCompare(b.name)) }));
   };
 
-  const updateCategory = async (id: number, oldName: string, newName: string) => {
-    const { error: catError } = await supabase.from('categories').update({ name: newName }).eq('id', id);
-    if (catError) { console.error(catError); return; }
+  const updateCategory = async (category: TablesUpdate<'categories'> & { id: number; name: string }) => {
+    const oldCategory = state.categories.find(c => c.id === category.id);
+    if (!oldCategory) return;
+    const oldName = oldCategory.name;
+    const newName = category.name;
 
-    const productsToUpdate = state.products.filter(p => p.categories?.includes(oldName));
-    for (const p of productsToUpdate) {
-        const newCategories = p.categories?.map(c => c === oldName ? newName : c);
-        await supabase.from('products').update({ categories: newCategories }).eq('id', p.id);
-    }
+    const { data, error } = await supabase.from('categories').update(category).eq('id', category.id).select().single();
+    if (error) { console.error(error); return; }
     
-    const { data: products } = await supabase.from('products').select('*');
-    const { data: categories } = await supabase.from('categories').select('*');
-    setState(s => ({ ...s, products: products || [], categories: categories || [] }));
+    if(data) {
+        const updatedCategories = state.categories.map(c => c.id === data.id ? data : c);
+        
+        if (oldName && newName && oldName !== newName) {
+            const productsToUpdate = state.products.filter(p => p.categories?.includes(oldName));
+            for (const p of productsToUpdate) {
+                const newCategories = p.categories?.map(c => c === oldName ? newName : c);
+                await supabase.from('products').update({ categories: newCategories }).eq('id', p.id);
+            }
+            const { data: products } = await supabase.from('products').select('*');
+            setState(s => ({ ...s, categories: updatedCategories, products: products || s.products }));
+        } else {
+            setState(s => ({ ...s, categories: updatedCategories }));
+        }
+    }
   };
 
   const deleteCategory = async (id: number) => {
@@ -408,7 +445,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const { team_members, ...contentData } = content;
     const { data, error } = await supabase.from('site_content').update(contentData).eq('id', 1).select().single();
     if(error) { console.error(error); return; }
-    // FIX: Use functional update with the callback's state `s` to prevent stale state issues.
     if(data) {
         setState(s => ({
             ...s, 
@@ -431,11 +467,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const updateOrderStatus = async (orderId: number, status: string) => {
     const { error } = await supabase.from('orders').update({ status }).eq('id', orderId);
-    if (error) { console.error(error); return; }
+    if (error) {
+      console.error(error);
+      return;
+    }
     setState(s => ({
       ...s,
       orders: s.orders.map(o => o.id === orderId ? { ...o, status } : o)
     }));
+
+    // Trigger email notification for shipping updates
+    if (status === 'Shipped' || status === 'Delivered') {
+      try {
+        const { error: funcError } = await supabase.functions.invoke('send-shipping-update', {
+          body: { orderId, status },
+        });
+        if (funcError) throw funcError;
+      } catch (error) {
+        console.error('Failed to send shipping update email:', error);
+        // Non-critical error, so we just log it.
+      }
+    }
   };
 
   const updateOrderItemStatus = async (itemId: number, status: string) => {

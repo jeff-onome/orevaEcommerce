@@ -304,6 +304,10 @@ export type Database = {
           site_name: string | null
           social_instagram: string | null
           social_tiktok: string | null
+          // FIX: Added missing social media fields to the site_content Row type.
+          social_facebook: string | null
+          social_twitter: string | null
+          social_whatsapp: string | null
           theme_accent: string | null
           theme_primary: string | null
           theme_secondary: string | null
@@ -330,6 +334,10 @@ export type Database = {
           site_name?: string | null
           social_instagram?: string | null
           social_tiktok?: string | null
+          // FIX: Added missing social media fields to the site_content Insert type.
+          social_facebook?: string | null
+          social_twitter?: string | null
+          social_whatsapp?: string | null
           theme_accent?: string | null
           theme_primary?: string | null
           theme_secondary?: string | null
@@ -356,6 +364,10 @@ export type Database = {
           site_name?: string | null
           social_instagram?: string | null
           social_tiktok?: string | null
+          // FIX: Added missing social media fields to the site_content Update type.
+          social_facebook?: string | null
+          social_twitter?: string | null
+          social_whatsapp?: string | null
           theme_accent?: string | null
           theme_primary?: string | null
           theme_secondary?: string | null

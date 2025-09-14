@@ -1,6 +1,5 @@
 
-
-import React from 'react';
+import React, { Component, ErrorInfo } from 'react';
 import { Link } from 'react-router-dom';
 import Button from './Button';
 
@@ -13,22 +12,19 @@ interface State {
   error?: Error;
 }
 
-class ErrorBoundary extends React.Component<Props, State> {
-  // FIX: State must be initialized in a class component's constructor before it can be used. This resolves errors where `this.state` and `this.props` were accessed before being defined.
-  constructor(props: Props) {
-    super(props);
-    this.state = {
-      hasError: false,
-      error: undefined,
-    };
-  }
+class ErrorBoundary extends Component<Props, State> {
+  // FIX: Replaced constructor with a state property initializer to resolve type errors.
+  public state: State = {
+    hasError: false,
+    error: undefined,
+  };
 
   static getDerivedStateFromError(error: Error): State {
     // Update state so the next render will show the fallback UI.
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // You can log the error to an error reporting service
     console.error("Uncaught error:", error, errorInfo);
   }

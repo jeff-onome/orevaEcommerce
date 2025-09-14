@@ -301,10 +301,11 @@ export type Database = {
           sales_banner_subtitle: string | null
           sales_banner_title: string | null
           site_name: string | null
-          social_facebook: string | null
           social_instagram: string | null
           social_tiktok: string | null
+          social_facebook: string | null
           social_whatsapp: string | null
+          social_twitter: string | null
           theme_accent: string | null
           theme_primary: string | null
           theme_secondary: string | null
@@ -329,10 +330,11 @@ export type Database = {
           sales_banner_subtitle?: string | null
           sales_banner_title?: string | null
           site_name?: string | null
-          social_facebook?: string | null
           social_instagram?: string | null
           social_tiktok?: string | null
+          social_facebook?: string | null
           social_whatsapp?: string | null
+          social_twitter?: string | null
           theme_accent?: string | null
           theme_primary?: string | null
           theme_secondary?: string | null
@@ -357,10 +359,11 @@ export type Database = {
           sales_banner_subtitle?: string | null
           sales_banner_title?: string | null
           site_name?: string | null
-          social_facebook?: string | null
           social_instagram?: string | null
           social_tiktok?: string | null
+          social_facebook?: string | null
           social_whatsapp?: string | null
+          social_twitter?: string | null
           theme_accent?: string | null
           theme_primary?: string | null
           theme_secondary?: string | null

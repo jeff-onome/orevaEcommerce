@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Product } from '../types';
@@ -10,28 +9,47 @@ interface ImageSliderProps {
 const ImageSlider: React.FC<ImageSliderProps> = ({ slides }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
 
+  // This effect resets the index if the slides array changes and the current index is out of bounds.
+  useEffect(() => {
+    if (slides && slides.length > 0 && currentIndex >= slides.length) {
+      setCurrentIndex(0);
+    }
+  }, [slides, currentIndex]);
+
+
   const goToPrevious = useCallback(() => {
+    if (!slides || slides.length === 0) return;
     const isFirstSlide = currentIndex === 0;
     const newIndex = isFirstSlide ? slides.length - 1 : currentIndex - 1;
     setCurrentIndex(newIndex);
-  }, [currentIndex, slides.length]);
+  }, [currentIndex, slides]);
 
   const goToNext = useCallback(() => {
+    if (!slides || slides.length === 0) return;
     const isLastSlide = currentIndex === slides.length - 1;
     const newIndex = isLastSlide ? 0 : currentIndex + 1;
     setCurrentIndex(newIndex);
-  }, [currentIndex, slides.length]);
+  }, [currentIndex, slides]);
   
   const goToSlide = (slideIndex: number) => {
     setCurrentIndex(slideIndex);
   };
 
   useEffect(() => {
-    const timer = setTimeout(goToNext, 5000);
-    return () => clearTimeout(timer);
-  }, [currentIndex, goToNext]);
+    // Only run the timer if there's more than one slide to prevent an infinite loop
+    if (slides.length > 1) {
+      const timer = setTimeout(goToNext, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [currentIndex, goToNext, slides.length]);
 
   if (!slides || slides.length === 0) {
+    return null;
+  }
+  
+  // This guard prevents a crash if the slides prop updates to a smaller array
+  // before the useEffect above has a chance to reset the state.
+  if (currentIndex >= slides.length) {
     return null;
   }
 

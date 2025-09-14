@@ -188,10 +188,12 @@ create table public.site_content (
   contact_address text,
   contact_email text,
   contact_phone text,
+  sender_email text,
   social_instagram text,
   social_tiktok text,
   social_facebook text,
   social_whatsapp text,
+  social_twitter text,
   about_title text,
   about_subtitle text,
   about_story_title text,
@@ -238,6 +240,7 @@ INSERT INTO public.site_content (
     contact_address, 
     contact_email, 
     contact_phone,
+    sender_email,
     about_title,
     about_subtitle,
     about_story_title,
@@ -248,7 +251,8 @@ INSERT INTO public.site_content (
     email_verification_title,
     email_verification_body,
     social_facebook,
-    social_whatsapp
+    social_whatsapp,
+    social_twitter
 ) VALUES (
     1, 
     'E-Shop Pro', 
@@ -257,6 +261,7 @@ INSERT INTO public.site_content (
     '123 Main Street, Lagos, Nigeria',
     'contact@eshopro.com',
     '+234 000 000 0000',
+    'notifications@eshopro.com',
     'About Us',
     'This is where you can talk about your store.',
     'Our Story',
@@ -266,6 +271,7 @@ INSERT INTO public.site_content (
     '#f50057',
     'Verify Your Email Address',
     'Thanks for signing up for E-Shop Pro! Please click the button below to confirm your email and complete your registration. If you didn''t create an account, you can safely ignore this email.',
+    null,
     null,
     null
 );
