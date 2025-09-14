@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { AdminTab, Product, Profile, ThemeColors, Order, Promotion, OrderItem, TeamMember } from '../types';
+import { AdminTab, Product, Profile, ThemeColors, Order, Promotion, OrderItem, TeamMember, SiteContent } from '../types';
 import { useAppContext } from '../context/AppContext';
 import Button from '../components/Button';
 import AdminProductRow from '../components/AdminProductRow';
@@ -8,7 +7,6 @@ import AdminProductForm from '../components/AdminProductForm';
 import Modal from '../components/Modal';
 import SimpleBarChart from '../components/SimpleBarChart';
 import AdminPromotionForm from '../components/AdminPromotionForm';
-import ImageCropModal from '../components/ImageCropModal';
 
 const AdminPage: React.FC = () => {
   const { 
@@ -28,6 +26,7 @@ const AdminPage: React.FC = () => {
     deleteCategory,
     addProduct,
     updateProduct,
+    deleteProduct,
     addPromotion,
     deletePromotion
   } = useAppContext();
@@ -36,6 +35,7 @@ const AdminPage: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
+  const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   
   // Category editing state
   const [isEditCategoryModalOpen, setIsEditCategoryModalOpen] = useState(false);
@@ -89,9 +89,8 @@ const AdminPage: React.FC = () => {
     [AdminTab.ORDERS]: '',
   });
   
-  // Image Cropping State
-  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
-  const [cropConfig, setCropConfig] = useState<{ callback: (img: string) => void; aspectRatio?: number } | null>(null);
+  // Image Uploading State
+  const [pendingUpload, setPendingUpload] = useState<{ imageSrc: string; onConfirm: () => void } | null>(null);
 
   const handleSearchChange = (tab: AdminTab, query: string) => {
     setSearchQueries(prev => ({ ...prev, [tab]: query }));
@@ -111,6 +110,23 @@ const AdminPage: React.FC = () => {
     updateProduct(updatedProduct);
     setIsEditModalOpen(false);
     setEditingProduct(undefined);
+  };
+
+  const handleDeleteProduct = (product: Product) => {
+    setDeletingProduct(product);
+  };
+
+  const confirmDeleteProduct = async () => {
+    if (deletingProduct) {
+        try {
+            await deleteProduct(deletingProduct.id);
+            alert('Product deleted successfully!');
+        } catch (error: any) {
+            alert(`Error: ${error.message}`);
+        } finally {
+            setDeletingProduct(null);
+        }
+    }
   };
 
   const handleOrderItemStatusChange = (orderId: number, itemId: number, status: string) => {
@@ -201,7 +217,7 @@ const AdminPage: React.FC = () => {
       updatePromotion({ ...promotion, is_active: !promotion.is_active });
   };
 
-  const handleSiteContentChange = (field: keyof Omit<typeof siteContent, 'team_members'>, value: any) => {
+  const handleSiteContentChange = (field: keyof Omit<SiteContent, 'team_members' | 'id'>, value: any) => {
     setSiteContent(prev => prev ? ({...prev, [field]: value }) : null);
   };
 
@@ -211,11 +227,13 @@ const AdminPage: React.FC = () => {
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
-        setCropConfig({
-            callback: (img) => handleSiteContentChange('about_story_image_url', img),
-            aspectRatio: 1.5,
+        setPendingUpload({
+            imageSrc: result,
+            onConfirm: () => {
+                handleSiteContentChange('about_story_image_url', result);
+                setPendingUpload(null);
+            }
         });
-        setImageToCrop(result);
       };
       reader.readAsDataURL(file);
     }
@@ -227,20 +245,16 @@ const AdminPage: React.FC = () => {
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
-        setCropConfig({
-            callback: (img) => setEditingTeamMember(p => p ? ({ ...p, image_url: img }) : null),
-            aspectRatio: 1,
+        setPendingUpload({
+            imageSrc: result,
+            onConfirm: () => {
+                setEditingTeamMember(p => p ? ({ ...p, image_url: result }) : null);
+                setPendingUpload(null);
+            }
         });
-        setImageToCrop(result);
       };
       reader.readAsDataURL(file);
     }
-  };
-
-  const handleCropComplete = (croppedImageUrl: string) => {
-    cropConfig?.callback(croppedImageUrl);
-    setImageToCrop(null);
-    setCropConfig(null);
   };
 
   const handleSaveTeamMember = () => {
@@ -305,7 +319,7 @@ const AdminPage: React.FC = () => {
                     </thead>
                     <tbody>
                         {filteredProducts.length > 0 ? (
-                            filteredProducts.map(p => <AdminProductRow key={p.id} product={p} onEdit={handleEditProduct} />)
+                            filteredProducts.map(p => <AdminProductRow key={p.id} product={p} onEdit={handleEditProduct} onDelete={handleDeleteProduct} />)
                         ) : (
                             <tr>
                                 <td colSpan={4} className="text-center py-8 text-gray-500">No products found.</td>
@@ -809,6 +823,16 @@ const AdminPage: React.FC = () => {
         <h2 className="text-2xl font-bold mb-4">Edit Product</h2>
         <AdminProductForm onSubmit={handleUpdateProduct} initialData={editingProduct} />
       </Modal>
+       <Modal isOpen={!!deletingProduct} onClose={() => setDeletingProduct(null)}>
+        <h2 className="text-2xl font-bold mb-4">Confirm Deletion</h2>
+        <p className="text-gray-600 mb-6">
+            Are you sure you want to delete the product "{deletingProduct?.name}"? This action cannot be undone.
+        </p>
+        <div className="flex justify-end gap-4">
+            <Button variant="secondary" onClick={() => setDeletingProduct(null)}>Cancel</Button>
+            <Button variant="danger" onClick={confirmDeleteProduct}>Delete</Button>
+        </div>
+      </Modal>
        <Modal isOpen={isEditCategoryModalOpen} onClose={() => setIsEditCategoryModalOpen(false)}>
         <h2 className="text-2xl font-bold mb-4">Edit Category Name</h2>
         {editingCategory && (
@@ -957,16 +981,22 @@ const AdminPage: React.FC = () => {
             </div>
         )}
     </Modal>
-    <ImageCropModal
-        isOpen={!!imageToCrop}
-        onClose={() => {
-            setImageToCrop(null);
-            setCropConfig(null);
-        }}
-        imageSrc={imageToCrop}
-        onCropComplete={handleCropComplete}
-        aspectRatio={cropConfig?.aspectRatio}
-    />
+    <Modal isOpen={!!pendingUpload} onClose={() => setPendingUpload(null)}>
+        {pendingUpload && (
+            <div className="text-center">
+            <h3 className="text-2xl font-bold mb-4">Upload this Image?</h3>
+            <img src={pendingUpload.imageSrc} alt="Preview" className="max-w-full max-h-80 mx-auto rounded-md mb-6" />
+            <div className="flex justify-center gap-4">
+                <Button variant="secondary" onClick={() => setPendingUpload(null)}>
+                Cancel
+                </Button>
+                <Button onClick={pendingUpload.onConfirm}>
+                Upload
+                </Button>
+            </div>
+            </div>
+        )}
+    </Modal>
     </div>
   );
 };

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import Button from '../Button';
 import { Profile } from '../../types';
@@ -9,17 +9,25 @@ const countries = [
 ];
 
 const AccountDetails: React.FC = () => {
-    // FIX: Replaced dispatch with updateProfile and used profile/user from context correctly.
-    const { state, updateProfile } = useAppContext();
-    const { profile, user: authUser } = state;
+    const { profile, user: authUser, updateProfile } = useAppContext();
     const [isEditing, setIsEditing] = useState(false);
     
-    // Local state for form fields
-    const [formData, setFormData] = useState<Partial<Pick<Profile, 'name' | 'phone' | 'country'>>>({
+    const [formData, setFormData] = useState<Partial<Profile>>({
         name: profile?.name,
         phone: profile?.phone,
         country: profile?.country,
     });
+    
+    useEffect(() => {
+        // Sync local form data if profile changes from context
+        if (profile) {
+            setFormData({
+                name: profile.name,
+                phone: profile.phone,
+                country: profile.country
+            });
+        }
+    }, [profile]);
     
     if (!profile || !authUser) return null;
 
@@ -32,7 +40,6 @@ const AccountDetails: React.FC = () => {
 
     const handleSaveChanges = (e: React.FormEvent) => {
         e.preventDefault();
-        // FIX: Use updateProfile from context instead of dispatch.
         updateProfile(formData);
         setIsEditing(false);
     };

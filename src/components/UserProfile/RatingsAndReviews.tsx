@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { OrderItem } from '../../types';
@@ -85,9 +86,19 @@ const RatingsAndReviews: React.FC = () => {
                 </div>
 
                 {selectedItem && (
-                    <form onSubmit={handleSubmitReview} className="bg-gray-50 p-6 rounded-lg animate-fade-in">
-                        <h4 className="font-semibold mb-4">Your review for: {selectedItem.products?.name}</h4>
-                        <div className="space-y-4">
+                    <div className="bg-gray-50 p-6 rounded-lg animate-fade-in">
+                        <button
+                            onClick={() => setSelectedItem(null)}
+                            className="flex items-center text-sm text-gray-600 hover:text-primary font-semibold mb-4 transition-colors duration-200"
+                            aria-label="Back to product selection"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                            Choose a different product
+                        </button>
+                        <form onSubmit={handleSubmitReview} className="space-y-4">
+                            <h4 className="font-semibold">Your review for: {selectedItem.products?.name}</h4>
                             <div>
                                 <label className="block font-medium mb-2">Rating</label>
                                 <StarRating rating={rating} setRating={setRating} />
@@ -105,8 +116,8 @@ const RatingsAndReviews: React.FC = () => {
                                 ></textarea>
                             </div>
                             <Button type="submit">Submit Review</Button>
-                        </div>
-                    </form>
+                        </form>
+                    </div>
                 )}
 
                 <div>

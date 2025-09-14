@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Product } from '../types';
 import Button from './Button';
@@ -83,7 +84,7 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ onSubmit, initialDa
     
     const finalProduct = {
       ...product,
-      image_url: product.image_url || `https://picsum.photos/seed/${product.name}/600/600`,
+      image_url: product.image_url || null,
     };
     onSubmit(finalProduct);
   };

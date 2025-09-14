@@ -76,7 +76,7 @@ const AdminPromotionForm: React.FC<AdminPromotionFormProps> = ({ onSubmit, initi
       ...promotion,
       target_category: promotion.title,
       cta_link: '/shop',
-      image_url: promotion.image_url || `https://picsum.photos/seed/${promotion.title}/1200/400`,
+      image_url: promotion.image_url || null,
     };
     onSubmit(finalPromotion);
   };

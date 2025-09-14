@@ -1,5 +1,3 @@
-
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Session, User as AuthUser } from '@supabase/supabase-js';
 import { supabase } from '../supabaseClient';
@@ -81,39 +79,62 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // --- AUTH & PROFILE MANAGEMENT ---
   useEffect(() => {
+    // Check active session on initial load
     const getSession = async () => {
         const { data: { session } } = await supabase.auth.getSession();
-        setState(s => ({ ...s, session, user: session?.user ?? null }));
+        
+        let profileData: Profile | null = null;
         if (session?.user) {
-            await fetchProfile(session.user.id);
+            const { data: profile, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .single();
+            if (error) console.error("Error fetching profile on initial load:", error);
+            profileData = profile || null;
         }
-        // Initial load is done after first session check
-        setState(s => ({ ...s, loading: false }));
+        
+        // Set all auth-related state at once to avoid race conditions
+        setState(s => ({ 
+            ...s, 
+            session, 
+            user: session?.user ?? null,
+            profile: profileData,
+            loading: false // Initial load is now complete
+        }));
     };
     
     getSession();
 
+    // Listen for auth state changes (login/logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setState(s => ({ ...s, session, user: session?.user ?? null }));
       if (session?.user) {
-        await fetchProfile(session.user.id);
+        // User logged in
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+        if (error) console.error("Error fetching profile on auth change:", error);
+        setState(s => ({ ...s, session, user: session.user, profile: profile || null }));
       } else {
-        setState(s => ({ ...s, profile: null, cart: [], wishlist: [], orders: [], users: [] }));
+        // User logged out - clear all user-specific state
+        setState(s => ({ 
+          ...s, 
+          session: null, 
+          user: null, 
+          profile: null, 
+          cart: [], 
+          wishlist: [], 
+          orders: [],
+          users: []
+        }));
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchProfile = async (userId: string) => {
-    const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-    if (error) console.error("Error fetching profile:", error);
-    setState(s => ({ ...s, profile: profile || null }));
-  };
 
   // --- DATA FETCHING ---
   useEffect(() => {
@@ -422,7 +443,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const { team_members, ...contentData } = content;
     const { data, error } = await supabase.from('site_content').update(contentData).eq('id', 1).select().single();
     if(error) { console.error(error); return; }
-    if(data && state.siteContent) setState(s => ({...s, siteContent: {...state.siteContent!, ...data} as SiteContent}));
+    if (data) {
+      setState(s => {
+        // FIX: Use the state from the callback `s` to avoid stale state issues.
+        // This ensures that when site content (like theme colors) is saved,
+        // it doesn't accidentally overwrite other parts of the siteContent state
+        // (like recently updated team members) with old data.
+        if (s.siteContent) {
+          return { ...s, siteContent: { ...s.siteContent, ...data } };
+        }
+        return s; // Should not happen if app is loaded, but a good safeguard.
+      });
+    }
   };
   
   const updateTeamMembers = async (members: TeamMember[]) => {

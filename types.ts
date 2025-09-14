@@ -292,6 +292,8 @@ export type Database = {
           contact_address: string | null
           contact_email: string | null
           contact_phone: string | null
+          email_verification_body: string | null
+          email_verification_title: string | null
           hero_subtitle: string | null
           hero_title: string | null
           id: number
@@ -316,6 +318,8 @@ export type Database = {
           contact_address?: string | null
           contact_email?: string | null
           contact_phone?: string | null
+          email_verification_body?: string | null
+          email_verification_title?: string | null
           hero_subtitle?: string | null
           hero_title?: string | null
           id?: number
@@ -340,6 +344,8 @@ export type Database = {
           contact_address?: string | null
           contact_email?: string | null
           contact_phone?: string | null
+          email_verification_body?: string | null
+          email_verification_title?: string | null
           hero_subtitle?: string | null
           hero_title?: string | null
           id?: number

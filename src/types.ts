@@ -292,6 +292,8 @@ export type Database = {
           contact_address: string | null
           contact_email: string | null
           contact_phone: string | null
+          email_verification_body: string | null
+          email_verification_title: string | null
           hero_subtitle: string | null
           hero_title: string | null
           id: number
@@ -300,8 +302,10 @@ export type Database = {
           sales_banner_subtitle: string | null
           sales_banner_title: string | null
           site_name: string | null
+          social_facebook: string | null
           social_instagram: string | null
           social_tiktok: string | null
+          social_whatsapp: string | null
           theme_accent: string | null
           theme_primary: string | null
           theme_secondary: string | null
@@ -316,6 +320,8 @@ export type Database = {
           contact_address?: string | null
           contact_email?: string | null
           contact_phone?: string | null
+          email_verification_body?: string | null
+          email_verification_title?: string | null
           hero_subtitle?: string | null
           hero_title?: string | null
           id?: number
@@ -324,8 +330,10 @@ export type Database = {
           sales_banner_subtitle?: string | null
           sales_banner_title?: string | null
           site_name?: string | null
+          social_facebook?: string | null
           social_instagram?: string | null
           social_tiktok?: string | null
+          social_whatsapp?: string | null
           theme_accent?: string | null
           theme_primary?: string | null
           theme_secondary?: string | null
@@ -340,6 +348,8 @@ export type Database = {
           contact_address?: string | null
           contact_email?: string | null
           contact_phone?: string | null
+          email_verification_body?: string | null
+          email_verification_title?: string | null
           hero_subtitle?: string | null
           hero_title?: string | null
           id?: number
@@ -348,8 +358,10 @@ export type Database = {
           sales_banner_subtitle?: string | null
           sales_banner_title?: string | null
           site_name?: string | null
+          social_facebook?: string | null
           social_instagram?: string | null
           social_tiktok?: string | null
+          social_whatsapp?: string | null
           theme_accent?: string | null
           theme_primary?: string | null
           theme_secondary?: string | null
@@ -559,7 +571,6 @@ export interface SiteContent extends Tables<'site_content'> {
     team_members: TeamMember[];
 }
 
-// FIX: Added ThemeColors interface to resolve import error in AdminPage.
 export interface ThemeColors {
   primary: string;
   secondary: string;

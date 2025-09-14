@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { Database } from './src/types';
+import { Database } from './types';
 
 // IMPORTANT: These variables should be in your environment variables (.env file)
 // For development, you can temporarily place them here, but it's not recommended for production.

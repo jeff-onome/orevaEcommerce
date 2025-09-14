@@ -1,6 +1,5 @@
 
 
-
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
@@ -128,7 +127,7 @@ const ShopPage: React.FC = () => {
           <input
             type="text"
             value={searchQuery}
-            // FIX: Explicitly typed the event `e` to prevent `e.target.value` from being inferred as `unknown`.
+            // FIX: Explicitly typed the event 'e' to resolve ambiguity and ensure 'e.target.value' is a string.
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
             placeholder="Search for products..."
             className="w-full py-3 pl-12 pr-4 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-primary transition-shadow"
