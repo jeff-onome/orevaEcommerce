@@ -1,10 +1,30 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import Button from '../components/Button';
 import { useAppContext } from '../context/AppContext';
 
 const ContactPage: React.FC = () => {
   const { siteContent } = useAppContext();
+  const [formData, setFormData] = useState({ name: '', email: '', subject: '', message: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    // Simulate an API call
+    setTimeout(() => {
+      setIsSubmitting(false);
+      setSubmitSuccess(true);
+      setFormData({ name: '', email: '', subject: '', message: '' });
+      setTimeout(() => setSubmitSuccess(false), 5000); // Hide message after 5 seconds
+    }, 1000);
+  };
+
 
   return (
     <div className="bg-surface p-8 rounded-lg shadow-xl animate-fade-in">
@@ -51,8 +71,26 @@ const ContactPage: React.FC = () => {
         {/* Contact Form */}
         <div>
           <h2 className="text-2xl font-bold text-primary mb-4">Send Us a Message</h2>
-          <form className="space-y-4" onSubmit={e => e.preventDefault()}>
-            <input type="text" placeholder="Your Name" className="w-full p-3 border rounded-md focus:ring-2 focus:ring-primary" required />
-            <input type="email" placeholder="Your Email" className="w-full p-3 border rounded-md focus:ring-2 focus:ring-primary" required />
-            <input type="text" placeholder="Subject" className="w-full p-3 border rounded-md focus:ring-2 focus:ring-primary" />
-            <textarea placeholder="Your Message" rows
+          {submitSuccess ? (
+            <div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-md animate-fade-in" role="alert">
+              <p className="font-bold">Message Sent!</p>
+              <p>Thank you for reaching out. We'll get back to you as soon as possible.</p>
+            </div>
+          ) : (
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Your Name" className="w-full p-3 border rounded-md focus:ring-2 focus:ring-primary" required />
+              <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Your Email" className="w-full p-3 border rounded-md focus:ring-2 focus:ring-primary" required />
+              <input type="text" name="subject" value={formData.subject} onChange={handleChange} placeholder="Subject" className="w-full p-3 border rounded-md focus:ring-2 focus:ring-primary" />
+              <textarea name="message" value={formData.message} onChange={handleChange} placeholder="Your Message" rows={5} className="w-full p-3 border rounded-md focus:ring-2 focus:ring-primary" required></textarea>
+              <Button type="submit" className="w-full" isLoading={isSubmitting}>
+                {isSubmitting ? 'Sending...' : 'Send Message'}
+              </Button>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ContactPage;

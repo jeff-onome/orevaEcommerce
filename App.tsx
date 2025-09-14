@@ -54,7 +54,6 @@ const App: React.FC = () => {
       <div className="flex flex-col min-h-screen">
         <Header />
         <main className="flex-grow container mx-auto px-4 py-8">
-          {/* FIX: The ErrorBoundary component requires a `children` prop. Wrapping the Suspense component provides it. */}
           <ErrorBoundary>
             <Suspense fallback={<div className="flex-grow flex items-center justify-center"><Spinner /></div>}>
               <Routes>

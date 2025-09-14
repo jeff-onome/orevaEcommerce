@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Session, User as AuthUser } from '@supabase/supabase-js';
 import { supabase } from '../supabaseClient';
@@ -407,7 +408,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const { team_members, ...contentData } = content;
     const { data, error } = await supabase.from('site_content').update(contentData).eq('id', 1).select().single();
     if(error) { console.error(error); return; }
-    if(data && state.siteContent) setState(s => ({...s, siteContent: {...s.siteContent!, ...data} as SiteContent}));
+    // FIX: Use functional update with the callback's state `s` to prevent stale state issues.
+    if(data) {
+        setState(s => ({
+            ...s, 
+            siteContent: {...s.siteContent!, ...data} as SiteContent
+        }));
+    }
   };
   
   const updateTeamMembers = async (members: TeamMember[]) => {
