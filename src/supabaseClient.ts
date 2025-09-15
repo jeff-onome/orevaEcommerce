@@ -1,5 +1,26 @@
-/**
- * This file is now a proxy to the canonical Supabase client in the root directory.
- * This consolidation helps simplify module resolution and prevent bundling issues.
- */
-export * from '../supabaseClient';
+
+import { createClient } from '@supabase/supabase-js';
+import { Database } from './types';
+import { rememberMeStorage } from './storage';
+
+const supabaseUrl = 'https://yuewdegzllrbwgxvkoxf.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1ZXdkZWd6bGxyYndneHZrb3hmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc5MzA1MTQsImV4cCI6MjA3MzUwNjUxNH0.7DqUSZuqKlZurtoGxQ6J4wAs55fhg6fYguComyqXx9Q';
+
+if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Supabase URL and Anon Key must be provided.");
+}
+
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    db: {
+        schema: 'public',
+    },
+    auth: {
+      storage: rememberMeStorage,
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true,
+    },
+    global: {
+      fetch: (input, init) => fetch(input, init),
+    },
+});

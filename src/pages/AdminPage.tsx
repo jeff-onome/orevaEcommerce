@@ -1,8 +1,5 @@
-
-
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { AdminTab, Product, Profile, Category, Order, Promotion, OrderItem, TeamMember, SiteContent, TablesInsert } from '../types';
+import { AdminTab, Product, Profile, ThemeColors, Category, Order, Promotion, OrderItem, TeamMember, SiteContent, TablesInsert, TablesUpdate } from '../types';
 import { useAppContext } from '../context/AppContext';
 import Button from '../components/Button';
 import AdminProductRow from '../components/AdminProductRow';
@@ -62,10 +59,30 @@ const AdminPage: React.FC = () => {
 
   // Site content state
   const [siteContent, setSiteContent] = useState(initialSiteContent);
+  const [teamMembers, setTeamMembers] = useState(initialSiteContent?.team_members || []);
+  const [themeColors, setThemeColors] = useState<ThemeColors>({
+      primary: initialSiteContent?.theme_primary || '#1a237e',
+      secondary: initialSiteContent?.theme_secondary || '#ffab40',
+      accent: initialSiteContent?.theme_accent || '#f50057'
+  });
 
+  // Effect to sync local state with the global context state when it updates
   useEffect(() => {
-    setSiteContent(initialSiteContent);
+    if (initialSiteContent) {
+      setSiteContent(initialSiteContent);
+      setTeamMembers(initialSiteContent.team_members || []);
+      setThemeColors({
+        primary: initialSiteContent.theme_primary || '#1a237e',
+        secondary: initialSiteContent.theme_secondary || '#ffab40',
+        accent: initialSiteContent.theme_accent || '#f50057',
+      });
+    }
   }, [initialSiteContent]);
+
+
+  // Team Member Modal State
+  const [isTeamMemberModalOpen, setIsTeamMemberModalOpen] = useState(false);
+  const [editingTeamMember, setEditingTeamMember] = useState<TeamMember | Partial<TeamMember> | null>(null);
 
   // Promotions state
   const [isAddPromotionModalOpen, setIsAddPromotionModalOpen] = useState(false);
@@ -85,11 +102,14 @@ const AdminPage: React.FC = () => {
     [AdminTab.ORDERS]: '',
   });
   
+  // Image Uploading State
+  const [pendingUpload, setPendingUpload] = useState<{ imageSrc: string; onConfirm: () => void } | null>(null);
+
   const handleSearchChange = (tab: AdminTab, query: string) => {
     setSearchQueries(prev => ({ ...prev, [tab]: query }));
   };
 
-  const handleAddNewProduct = (newProduct: Omit<Product, 'id' | 'created_at'>) => {
+  const handleAddNewProduct = (newProduct: Omit<Product, 'id' | 'created_at' | 'avg_rating' | 'review_count'>) => {
     addProduct(newProduct);
     setIsAddModalOpen(false);
   };
@@ -134,10 +154,17 @@ const AdminPage: React.FC = () => {
 
   const handleContentSave = async () => {
       if (!siteContent) return;
-      await updateSiteContent(siteContent);
-      alert('Site content updated successfully!');
+      const contentToSave = { 
+        ...siteContent, 
+        theme_primary: themeColors.primary,
+        theme_secondary: themeColors.secondary,
+        theme_accent: themeColors.accent,
+      };
+      await updateSiteContent(contentToSave);
+      await updateTeamMembers(teamMembers);
+      alert('Site content and team updated successfully!');
   };
-  
+
   const handleSaveCategory = async (formData: Category | TablesInsert<'categories'>) => {
     try {
       if ('id' in formData && formData.id) { // Editing existing category
@@ -208,6 +235,85 @@ const AdminPage: React.FC = () => {
 
   const handleTogglePromotionStatus = (promotion: Promotion) => {
       updatePromotion({ ...promotion, is_active: !promotion.is_active });
+  };
+
+  const handleSiteContentChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value, type } = e.target;
+    const isChecked = (e.target as HTMLInputElement).checked;
+    
+    setSiteContent(prev => prev ? ({
+        ...prev,
+        [name]: type === 'checkbox' ? isChecked : value
+    }) : null);
+  };
+
+  const handleThemeColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setThemeColors(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: keyof SiteContent) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        setPendingUpload({
+            imageSrc: result,
+            onConfirm: () => {
+                setSiteContent(prev => prev ? ({...prev, [field]: result }) : null);
+                setPendingUpload(null);
+            }
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  
+  const handleTeamMemberImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && editingTeamMember) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        setPendingUpload({
+            imageSrc: result,
+            onConfirm: () => {
+                setEditingTeamMember(p => p ? ({ ...p, image_url: result }) : null);
+                setPendingUpload(null);
+            }
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSaveTeamMember = () => {
+    if (!editingTeamMember || !editingTeamMember.name || !editingTeamMember.title || !editingTeamMember.image_url) {
+        alert("Please fill all fields for the team member.");
+        return;
+    }
+
+    const newTeamMembers = [...teamMembers];
+    
+    if ('id' in editingTeamMember && typeof editingTeamMember.id === 'number' && editingTeamMember.id < Date.now()) { // Editing existing
+        const index = newTeamMembers.findIndex(m => m.id === editingTeamMember.id);
+        if (index > -1) {
+            newTeamMembers[index] = editingTeamMember as TeamMember;
+        }
+    } else { // Adding new
+        newTeamMembers.push({ ...editingTeamMember, id: Date.now() } as TeamMember);
+    }
+
+    setTeamMembers(newTeamMembers);
+    setIsTeamMemberModalOpen(false);
+    setEditingTeamMember(null);
+  };
+
+  const handleDeleteTeamMember = (id: number) => {
+    if (window.confirm("Are you sure you want to delete this team member?")) {
+        const updatedMembers = teamMembers.filter(m => m.id !== id);
+        setTeamMembers(updatedMembers);
+    }
   };
 
   // --- ANALYTICS DATA CALCULATION ---
@@ -607,31 +713,142 @@ const AdminPage: React.FC = () => {
         return (
              <div>
                 <h3 className="text-2xl font-semibold mb-6">Manage Site Content & Theme</h3>
-                <div className="space-y-8 max-w-4xl">
-                    {/* General & Hero */}
-                    <div className="p-6 border rounded-lg">
-                        <h4 className="text-lg font-bold mb-4">General & Homepage</h4>
+                <div className="space-y-8 max-w-4xl mx-auto">
+                    {/* General & Theme */}
+                    <div className="p-6 border rounded-lg shadow-sm">
+                        <h4 className="text-lg font-bold mb-4">General & Theme</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label htmlFor="siteName" className="block text-sm font-medium text-gray-700">Site Name</label>
-                                <input type="text" id="siteName" value={siteContent.site_name || ''} onChange={(e) => setSiteContent(p => p ? ({ ...p, site_name: e.target.value }) : null)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" />
+                                <label className="block text-sm font-medium text-gray-700">Site Name</label>
+                                <input type="text" name="site_name" value={siteContent.site_name || ''} onChange={handleSiteContentChange} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" />
                             </div>
                             <div>
-                                <label htmlFor="senderEmail" className="block text-sm font-medium text-gray-700">Sender Email</label>
-                                <input type="email" id="senderEmail" value={siteContent.sender_email || ''} onChange={(e) => setSiteContent(p => p ? ({ ...p, sender_email: e.target.value }) : null)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" placeholder="notifications@example.com" />
+                                <label className="block text-sm font-medium text-gray-700">Sender Email (for notifications)</label>
+                                <input type="email" name="sender_email" value={siteContent.sender_email || ''} onChange={handleSiteContentChange} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" placeholder="notifications@example.com" />
                             </div>
-                            <div>
-                                <label htmlFor="heroTitle" className="block text-sm font-medium text-gray-700">Hero Title</label>
-                                <input type="text" id="heroTitle" value={siteContent.hero_title || ''} onChange={(e) => setSiteContent(p => p ? ({ ...p, hero_title: e.target.value }) : null)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" />
-                            </div>
-                            <div className="md:col-span-2">
-                                <label htmlFor="heroSubtitle" className="block text-sm font-medium text-gray-700">Hero Subtitle</label>
-                                <textarea id="heroSubtitle" value={siteContent.hero_subtitle || ''} onChange={(e) => setSiteContent(p => p ? ({ ...p, hero_subtitle: e.target.value }) : null)} rows={2} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm"></textarea>
+                            <div className="md:col-span-2 grid grid-cols-3 gap-4 items-center">
+                                {Object.entries(themeColors).map(([key, value]) => (
+                                    <div key={key}>
+                                        <label className="block text-sm font-medium text-gray-700 capitalize">{key} Color</label>
+                                        <div className="mt-1 flex items-center gap-2">
+                                            <input type="color" name={key} value={value} onChange={handleThemeColorChange} className="h-10 w-10 p-1 border border-gray-300 rounded-md cursor-pointer" />
+                                            <input type="text" value={value} onChange={handleThemeColorChange} name={key} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm" />
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     </div>
-                    {/* ... other sections ... */}
-                    <Button onClick={handleContentSave} className="w-full text-lg py-3">Save All Changes</Button>
+                    
+                    {/* Homepage Hero */}
+                    <div className="p-6 border rounded-lg shadow-sm">
+                        <h4 className="text-lg font-bold mb-4">Homepage Hero Section</h4>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Hero Title</label>
+                                <input type="text" name="hero_title" value={siteContent.hero_title || ''} onChange={handleSiteContentChange} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Hero Subtitle</label>
+                                <textarea name="hero_subtitle" value={siteContent.hero_subtitle || ''} onChange={handleSiteContentChange} rows={2} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Sales Banner */}
+                    <div className="p-6 border rounded-lg shadow-sm">
+                        <h4 className="text-lg font-bold mb-4">Sales Banner</h4>
+                        <div className="space-y-4">
+                             <label className="flex items-center space-x-3 cursor-pointer">
+                                <input type="checkbox" name="sales_banner_is_active" checked={siteContent.sales_banner_is_active || false} onChange={handleSiteContentChange} className="h-5 w-5 rounded text-primary focus:ring-primary"/>
+                                <span className="text-gray-700">Is Banner Active?</span>
+                            </label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Banner Title</label>
+                                    <input type="text" name="sales_banner_title" value={siteContent.sales_banner_title || ''} onChange={handleSiteContentChange} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Banner End Date</label>
+                                    <input type="datetime-local" name="sales_banner_end_date" value={siteContent.sales_banner_end_date?.slice(0,16) || ''} onChange={handleSiteContentChange} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Banner Subtitle</label>
+                                <input type="text" name="sales_banner_subtitle" value={siteContent.sales_banner_subtitle || ''} onChange={handleSiteContentChange} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* About Us Page */}
+                    <div className="p-6 border rounded-lg shadow-sm">
+                        <h4 className="text-lg font-bold mb-4">About Us Page</h4>
+                        <div className="space-y-4">
+                           <input type="text" name="about_title" placeholder="About Page Title" value={siteContent.about_title || ''} onChange={handleSiteContentChange} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm" />
+                           <textarea name="about_subtitle" placeholder="About Page Subtitle" value={siteContent.about_subtitle || ''} onChange={handleSiteContentChange} rows={2} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm"></textarea>
+                           <hr/>
+                           <input type="text" name="about_story_title" placeholder="Story Title" value={siteContent.about_story_title || ''} onChange={handleSiteContentChange} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm" />
+                           <textarea name="about_story_content" placeholder="Story Content" value={siteContent.about_story_content || ''} onChange={handleSiteContentChange} rows={5} className="block w-full p-2 border border-gray-300 rounded-md shadow-sm"></textarea>
+                           <div>
+                                <label className="block text-sm font-medium text-gray-700">Story Image</label>
+                                <input type="file" accept="image/*" onChange={(e) => handleFileChange(e, 'about_story_image_url')} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-primary hover:file:bg-violet-100" />
+                                {siteContent.about_story_image_url && <img src={siteContent.about_story_image_url} alt="Preview" className="mt-2 h-32 w-auto object-cover rounded-md" />}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Team Members */}
+                     <div className="p-6 border rounded-lg shadow-sm">
+                        <h4 className="text-lg font-bold mb-4">Team Members Section</h4>
+                        <input type="text" name="about_team_title" placeholder="Team Section Title (e.g., Meet the Team)" value={siteContent.about_team_title || ''} onChange={handleSiteContentChange} className="mb-4 block w-full p-2 border border-gray-300 rounded-md shadow-sm" />
+                        <div className="space-y-2">
+                            {teamMembers.map(member => (
+                                <div key={member.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                    <div className="flex items-center gap-3">
+                                        <img src={member.image_url || 'https://via.placeholder.com/40'} alt={member.name || ''} className="w-10 h-10 rounded-full object-cover"/>
+                                        <span>{member.name} - {member.title}</span>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <button onClick={() => { setEditingTeamMember(member); setIsTeamMemberModalOpen(true); }} className="text-sm text-indigo-600 hover:underline">Edit</button>
+                                        <button onClick={() => handleDeleteTeamMember(member.id)} className="text-sm text-red-600 hover:underline">Delete</button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <Button onClick={() => { setEditingTeamMember({}); setIsTeamMemberModalOpen(true); }} className="mt-4">Add Team Member</Button>
+                    </div>
+
+                    {/* Contact & Socials */}
+                    <div className="p-6 border rounded-lg shadow-sm">
+                        <h4 className="text-lg font-bold mb-4">Contact & Socials</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <input type="text" name="contact_address" placeholder="Address" value={siteContent.contact_address || ''} onChange={handleSiteContentChange} className="p-2 border rounded-md" />
+                            <input type="email" name="contact_email" placeholder="Email" value={siteContent.contact_email || ''} onChange={handleSiteContentChange} className="p-2 border rounded-md" />
+                            <input type="tel" name="contact_phone" placeholder="Phone" value={siteContent.contact_phone || ''} onChange={handleSiteContentChange} className="p-2 border rounded-md" />
+                            <input type="text" name="social_instagram" placeholder="Instagram Handle" value={siteContent.social_instagram || ''} onChange={handleSiteContentChange} className="p-2 border rounded-md" />
+                            <input type="text" name="social_tiktok" placeholder="TikTok Handle" value={siteContent.social_tiktok || ''} onChange={handleSiteContentChange} className="p-2 border rounded-md" />
+                            <input type="text" name="social_facebook" placeholder="Facebook Handle" value={siteContent.social_facebook || ''} onChange={handleSiteContentChange} className="p-2 border rounded-md" />
+                            <input type="text" name="social_twitter" placeholder="Twitter Handle" value={siteContent.social_twitter || ''} onChange={handleSiteContentChange} className="p-2 border rounded-md" />
+                            <input type="text" name="social_whatsapp" placeholder="WhatsApp Number" value={siteContent.social_whatsapp || ''} onChange={handleSiteContentChange} className="p-2 border rounded-md" />
+                        </div>
+                    </div>
+                    
+                    {/* Legal Pages */}
+                    <div className="p-6 border rounded-lg shadow-sm">
+                        <h4 className="text-lg font-bold mb-4">Legal Pages</h4>
+                         <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Privacy Policy</label>
+                                <textarea name="privacy_policy_content" value={siteContent.privacy_policy_content || ''} onChange={handleSiteContentChange} rows={8} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm"></textarea>
+                            </div>
+                             <div>
+                                <label className="block text-sm font-medium text-gray-700">Terms of Service</label>
+                                <textarea name="terms_of_service_content" value={siteContent.terms_of_service_content || ''} onChange={handleSiteContentChange} rows={8} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <Button onClick={handleContentSave} className="w-full text-lg py-3 sticky bottom-4">Save All Changes</Button>
                 </div>
             </div>
         );
@@ -748,6 +965,40 @@ const AdminPage: React.FC = () => {
             <Button variant="danger" onClick={confirmDeletePromotion}>Delete</Button>
         </div>
     </Modal>
+    <Modal isOpen={isTeamMemberModalOpen} onClose={() => setIsTeamMemberModalOpen(false)}>
+      {editingTeamMember && (
+        <div>
+          <h2 className="text-2xl font-bold mb-4">{'id' in editingTeamMember ? 'Edit' : 'Add'} Team Member</h2>
+          <div className="space-y-4">
+            <input 
+              type="text"
+              placeholder="Name"
+              value={editingTeamMember.name || ''}
+              onChange={e => setEditingTeamMember(p => p ? ({...p, name: e.target.value}) : null)}
+              className="w-full p-2 border rounded"
+            />
+            <input 
+              type="text"
+              placeholder="Title"
+              value={editingTeamMember.title || ''}
+              onChange={e => setEditingTeamMember(p => p ? ({...p, title: e.target.value}) : null)}
+              className="w-full p-2 border rounded"
+            />
+            <div>
+                <label className="block text-sm font-medium text-gray-700">Member Image</label>
+                <input 
+                type="file"
+                accept="image/*"
+                onChange={handleTeamMemberImageChange}
+                className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-primary hover:file:bg-violet-100"
+                />
+                {editingTeamMember.image_url && <img src={editingTeamMember.image_url} alt="Preview" className="mt-2 h-24 w-24 rounded-full object-cover" loading="lazy" decoding="async" />}
+            </div>
+            <Button onClick={handleSaveTeamMember}>Save Member</Button>
+          </div>
+        </div>
+      )}
+    </Modal>
     <Modal isOpen={!!viewingOrder} onClose={() => setViewingOrder(null)}>
         {viewingOrder && (
             <div>
@@ -793,6 +1044,22 @@ const AdminPage: React.FC = () => {
                 <div className="mt-6 text-right">
                     <Button variant="secondary" onClick={() => setViewingOrder(null)}>Close</Button>
                 </div>
+            </div>
+        )}
+    </Modal>
+    <Modal isOpen={!!pendingUpload} onClose={() => setPendingUpload(null)}>
+        {pendingUpload && (
+            <div className="text-center">
+            <h3 className="text-2xl font-bold mb-4">Upload this Image?</h3>
+            <img src={pendingUpload.imageSrc} alt="Preview" className="max-w-full max-h-80 mx-auto rounded-md mb-6" />
+            <div className="flex justify-center gap-4">
+                <Button variant="secondary" onClick={() => setPendingUpload(null)}>
+                Cancel
+                </Button>
+                <Button onClick={pendingUpload.onConfirm}>
+                Upload
+                </Button>
+            </div>
             </div>
         )}
     </Modal>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, Link } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
@@ -80,7 +81,7 @@ const MobileMenu: React.FC<{onClose: () => void}> = ({onClose}) => {
           console.error('Error signing out:', error);
           alert('There was an issue signing out. Please try again.');
         }
-        navigate('/');
+        navigate('/login');
         onClose();
     };
 
@@ -138,7 +139,7 @@ const Header: React.FC = () => {
       console.error('Error signing out:', error);
       alert('There was an issue signing out. Please try again.');
     }
-    navigate('/');
+    navigate('/login');
   };
   
   const navLinkClass = ({ isActive }: { isActive: boolean }) => 

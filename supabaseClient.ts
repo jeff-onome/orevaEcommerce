@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 import { Database } from './src/types';
 import { rememberMeStorage } from './src/storage';
@@ -9,13 +10,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error("Supabase URL and Anon Key must be provided.");
 }
 
-const customFetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    return fetch(input, {
-        ...init,
-        cache: 'no-store'
-    });
-};
-
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     db: {
         schema: 'public',
@@ -26,7 +20,10 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
       persistSession: true,
       detectSessionInUrl: true,
     },
+    // Explicitly provide the fetch implementation. This can help bypass issues with
+    // modified or polyfilled fetch APIs in certain environments that may cause
+    // a "Failed to fetch" error.
     global: {
-      fetch: customFetch
-    }
+      fetch: (input, init) => fetch(input, init),
+    },
 });

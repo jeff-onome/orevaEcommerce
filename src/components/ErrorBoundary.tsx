@@ -12,11 +12,14 @@ interface State {
 }
 
 class ErrorBoundary extends Component<Props, State> {
-  // FIX: Switched from constructor to class field for state initialization. This resolves an issue where 'this.state' and 'this.props' were not being found on the component instance, likely due to a build configuration quirk.
-  state: State = {
-    hasError: false,
-    error: undefined,
-  };
+  // FIX: The error "Property 'props' does not exist" and a previous fix comment regarding arrow functions suggest a potential build configuration issue with ES class fields. While the `render` method was converted to a standard method, state initialization was still a class field. Reverting state initialization to a standard constructor ensures the component avoids any class field-related transpilation problems, which should correctly resolve the `this` context and make `this.props` available.
+  constructor(props: Props) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: undefined,
+    };
+  }
 
   static getDerivedStateFromError(error: Error): State {
     // Update state so the next render will show the fallback UI.
@@ -28,9 +31,8 @@ class ErrorBoundary extends Component<Props, State> {
     console.error("Uncaught error:", error, errorInfo);
   }
 
-  // FIX: Changed render from an arrow function to a standard class method. The 'this' context in React's lifecycle methods like render is automatically bound by React, and this change resolves the issue where 'this.props' was not being found.
+  // FIX: Reverted `render` to a standard class method. The arrow function syntax was causing "Property 'props' does not exist" errors, likely due to a build configuration issue with how 'this' is typed in arrow function class fields.
   render() {
-    // FIX: Corrected a syntax error in object destructuring where 'of' was used instead of '='.
     const { hasError, error } = this.state;
 
     if (hasError) {
