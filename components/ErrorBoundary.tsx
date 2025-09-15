@@ -12,14 +12,12 @@ interface State {
 }
 
 class ErrorBoundary extends Component<Props, State> {
-  // FIX: The error "Property 'props' does not exist" and a previous fix comment regarding arrow functions suggest a potential build configuration issue with ES class fields. While the `render` method was converted to a standard method, state initialization was still a class field. Reverting state initialization to a standard constructor ensures the component avoids any class field-related transpilation problems, which should correctly resolve the `this` context and make `this.props` available.
-  constructor(props: Props) {
-    super(props);
-    this.state = {
-      hasError: false,
-      error: undefined,
-    };
-  }
+  // FIX: The errors "Property 'state' does not exist" and "Property 'props' does not exist" suggest an issue with 'this' context or class property initialization.
+  // Using a class field to initialize state is a modern and robust approach that avoids potential constructor-related issues.
+  state: State = {
+    hasError: false,
+    error: undefined,
+  };
 
   static getDerivedStateFromError(error: Error): State {
     // Update state so the next render will show the fallback UI.
@@ -31,7 +29,6 @@ class ErrorBoundary extends Component<Props, State> {
     console.error("Uncaught error:", error, errorInfo);
   }
 
-  // FIX: Reverted `render` to a standard class method. The arrow function syntax was causing "Property 'props' does not exist" errors, likely due to a build configuration issue with how 'this' is typed in arrow function class fields.
   render() {
     const { hasError, error } = this.state;
 
@@ -51,7 +48,7 @@ class ErrorBoundary extends Component<Props, State> {
             {process.env.NODE_ENV === 'development' && error && (
                 <details className="bg-red-50 p-4 rounded-md text-left mb-6 w-full max-w-2xl">
                     <summary className="font-semibold cursor-pointer text-red-800">Error Details</summary>
-                    <pre className="text-red-700 text-sm mt-2 whitespace-pre-wrap break-words">
+                    <pre className="text-sm mt-2 whitespace-pre-wrap break-words">
                         {error.toString()}
                         <br />
                         {error.stack}

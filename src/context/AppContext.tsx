@@ -140,7 +140,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             supabase.auth.getSession(),
         ]);
         
-        // ... (Error checking can be added here for production)
+        // Error checking for robust startup
+        const results = [productsRes, categoriesRes, promotionsRes, siteContentRes, teamMembersRes, reviewsRes, sessionRes];
+        for (const res of results) {
+          if ('error' in res && res.error) throw res.error;
+        }
 
         const session = sessionRes.data.session;
         const publicData = {
