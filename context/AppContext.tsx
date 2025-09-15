@@ -37,7 +37,12 @@ interface AppContextType extends AppState {
 
   toggleWishlist: (productId: number) => Promise<void>;
   
-  placeOrder: (items: CartItem[], total: number) => Promise<Order | null>;
+  placeOrder: (
+    items: CartItem[], 
+    total: number, 
+    shippingDetails: { address: string; city: string; zip: string; country: string; }, 
+    paymentMethod: string
+  ) => Promise<Order | null>;
   
   addReview: (reviewData: TablesInsert<'reviews'>) => Promise<void>;
 
@@ -191,15 +196,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     const fetchUserData = async () => {
         if (state.user) {
-            const [
-              { data: cartData },
-              { data: wishlistData },
-              { data: ordersData },
-            ] = await Promise.all([
-              supabase.from('cart_items').select('*, products(*)').eq('user_id', state.user!.id),
-              supabase.from('wishlist_items').select('product_id').eq('user_id', state.user!.id),
-              supabase.from('orders').select('*, order_items(*, products(*)), profiles(*)').eq('user_id', state.user!.id).order('created_at', { ascending: false }),
-            ]);
+            const { data: cartData } = await supabase.from('cart_items').select('*, products(*)').eq('user_id', state.user!.id);
+            const { data: wishlistData } = await supabase.from('wishlist_items').select('product_id').eq('user_id', state.user!.id);
+            
+            // Admins see all orders, regular users see only their own.
+            let ordersQuery = supabase.from('orders').select('*, order_items(*, products(*)), profiles(*)');
+            if (!state.profile?.is_admin) {
+              ordersQuery = ordersQuery.eq('user_id', state.user.id);
+            }
+            const { data: ordersData } = await ordersQuery.order('created_at', { ascending: false });
 
             // FIX: Filter out cart items where the associated product has been deleted to prevent crashes.
             const cartItems: CartItem[] = (cartData || [])
@@ -291,12 +296,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
   
-  const placeOrder = async (items: CartItem[], total: number) => {
+  const placeOrder = async (
+    items: CartItem[], 
+    total: number, 
+    shippingDetails: { address: string; city: string; zip: string; country: string; },
+    paymentMethod: string
+  ) => {
     if (!state.user) return null;
     
     // 1. Create the order
     const { data: orderData, error: orderError } = await supabase.from('orders')
-      .insert({ user_id: state.user.id, total, status: 'Processing' })
+      .insert({ 
+        user_id: state.user.id, 
+        total, 
+        status: 'Pending',
+        payment_method: paymentMethod,
+        shipping_address_line1: shippingDetails.address,
+        shipping_address_city: shippingDetails.city,
+        shipping_address_zip: shippingDetails.zip,
+        shipping_address_country: shippingDetails.country,
+      })
       .select()
       .single();
 
@@ -311,7 +330,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       product_id: item.id,
       quantity: item.quantity,
       price_at_purchase: item.sale_price ?? item.price,
-      status: 'Processing'
+      status: 'Pending'
     }));
 
     const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
@@ -440,11 +459,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const updateOrderStatus = async (orderId: number, status: string) => {
     const { error } = await supabase.from('orders').update({ status }).eq('id', orderId);
-    if (error) { console.error(error); return; }
+    if (error) {
+      console.error(error);
+      return;
+    }
     setState(s => ({
       ...s,
       orders: s.orders.map(o => o.id === orderId ? { ...o, status } : o)
     }));
+
+    // Trigger email notification for shipping updates
+    try {
+      const { error: funcError } = await supabase.functions.invoke('send-shipping-update', {
+        body: { orderId, status },
+      });
+      if (funcError) throw funcError;
+    } catch (error) {
+      console.error('Failed to send shipping update email:', error);
+      // Non-critical error, so we just log it.
+    }
   };
 
   const updateOrderItemStatus = async (itemId: number, status: string) => {
@@ -454,7 +487,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ...s,
         orders: s.orders.map(o => ({
             ...o,
-            items: o.items.map(i => i.id === itemId ? { ...i, status } as any : i)
+            order_items: o.order_items.map(i => i.id === itemId ? { ...i, status } as any : i)
         }))
     }));
   };

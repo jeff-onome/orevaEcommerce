@@ -21,8 +21,7 @@ interface AppState {
   profile: Profile | null;
   
   // App Status
-  loading: boolean; // For the initial, very brief session check
-  dataLoading: boolean; // For fetching products, categories, etc.
+  loading: boolean;
   error: Error | null;
 }
 
@@ -36,18 +35,24 @@ interface AppContextType extends AppState {
 
   toggleWishlist: (productId: number) => Promise<void>;
   
-  placeOrder: (items: CartItem[], total: number) => Promise<Order | null>;
+  placeOrder: (
+    items: CartItem[], 
+    total: number, 
+    shippingDetails: { address: string; city: string; zip: string; country: string; }, 
+    paymentMethod: string
+  ) => Promise<Order | null>;
   
   addReview: (reviewData: TablesInsert<'reviews'>) => Promise<void>;
 
   updateProfile: (details: Partial<Profile>) => Promise<void>;
 
   // Admin functions
-  addProduct: (product: Omit<Product, 'id' | 'created_at'>) => Promise<Product | null>;
+  addProduct: (product: Omit<Product, 'id' | 'created_at' | 'avg_rating' | 'review_count'>) => Promise<Product | null>;
   updateProduct: (product: Product) => Promise<void>;
   deleteProduct: (productId: number) => Promise<void>;
-  addCategory: (category: TablesInsert<'categories'>) => Promise<void>;
-  updateCategory: (category: TablesUpdate<'categories'> & { id: number; name: string }) => Promise<void>;
+  addCategory: (categoryData: TablesInsert<'categories'>) => Promise<void>;
+  updateCategory: (id: number, categoryData: TablesUpdate<'categories'>) => Promise<void>;
+  renameCategoryAndUpdateProducts: (id: number, oldName: string, newName: string) => Promise<void>;
   deleteCategory: (id: number) => Promise<void>;
   addPromotion: (promo: Omit<Promotion, 'id'>) => Promise<void>;
   updatePromotion: (promo: Promotion) => Promise<void>;
@@ -75,166 +80,110 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     user: null,
     profile: null,
     loading: true,
-    dataLoading: true,
     error: null,
   });
 
-  const fetchProfile = async (userId: string) => {
-    const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-    if (error) console.error("Error fetching profile:", error);
-    setState(s => ({ ...s, profile: profile || null }));
+  const fetchAllUserData = async (user: AuthUser) => {
+    try {
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        if (!profile) {
+            // If profile is not found, maybe it's still being created. We can just clear user data.
+             setState(s => ({ ...s, profile: null, cart: [], wishlist: [], orders: [], users: [] }));
+             return;
+        }
+
+        let userData = { profile, cart: [], wishlist: [], orders: [], users: [] };
+
+        if (profile.is_admin) {
+            const { data: usersData } = await supabase.from('profiles').select('*');
+            const { data: allOrders } = await supabase.from('orders').select('*, order_items(*, products(*)), profiles(*)').order('created_at', { ascending: false });
+            userData.users = usersData || [];
+            userData.orders = (allOrders as any) || [];
+        } else {
+            const { data: cartData } = await supabase.from('cart_items').select('*, products(*)').eq('user_id', user.id);
+            const { data: wishlistData } = await supabase.from('wishlist_items').select('product_id').eq('user_id', user.id);
+            const { data: ordersData } = await supabase.from('orders').select('*, order_items(*, products(*)), profiles(*)').eq('user_id', user.id).order('created_at', { ascending: false });
+
+            userData.cart = (cartData || []).filter(item => item.products).map(item => ({ ...(item.products as Product), quantity: item.quantity }));
+            userData.wishlist = wishlistData?.map(item => item.product_id) || [];
+            userData.orders = (ordersData as any) || [];
+        }
+
+        setState(s => ({ ...s, ...userData }));
+    } catch (error) {
+        console.error("Error fetching user data:", error);
+        setState(s => ({ ...s, profile: null, cart: [], wishlist: [], orders: [], users: [] }));
+    }
   };
 
-  // --- AUTH & PROFILE MANAGEMENT ---
-  useEffect(() => {
-    const getSession = async () => {
-      try {
-        // Add a 5-second timeout to the session fetch to prevent infinite loading on network issues.
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Session check timed out')), 5000)
-        );
 
-        const { data: { session } }: any = await Promise.race([sessionPromise, timeoutPromise]);
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        // 1. Fetch all public data and the initial session concurrently.
+        const [
+            productsRes,
+            categoriesRes,
+            promotionsRes,
+            siteContentRes,
+            teamMembersRes,
+            reviewsRes,
+            sessionRes,
+        ] = await Promise.all([
+            supabase.from('products').select('*').order('id'),
+            supabase.from('categories').select('*').order('display_order'),
+            supabase.from('promotions').select('*').order('id'),
+            supabase.from('site_content').select('*').eq('id', 1).maybeSingle(),
+            supabase.from('team_members').select('*'),
+            supabase.from('reviews').select('*, profiles(name)'),
+            supabase.auth.getSession(),
+        ]);
         
-        setState(s => ({ ...s, session, user: session?.user ?? null }));
+        // ... (Error checking can be added here for production)
+
+        const session = sessionRes.data.session;
+        const publicData = {
+          products: productsRes.data || [],
+          categories: categoriesRes.data || [],
+          promotions: promotionsRes.data || [],
+          reviews: (reviewsRes.data as any) || [],
+          siteContent: siteContentRes.data ? { ...(siteContentRes.data as any), team_members: teamMembersRes.data || [] } : null,
+        };
+
+        // 2. Set public data and initial session state.
+        setState(s => ({ ...s, ...publicData, session, user: session?.user ?? null }));
+
+        // 3. If a user session exists, fetch all user-specific data.
         if (session?.user) {
-            await fetchProfile(session.user.id);
+          await fetchAllUserData(session.user);
         }
-      } catch(error) {
-        console.error("Error getting session:", error);
-        // Continue execution even if session check fails or times out
+
+      } catch (err: any) {
+        console.error("Error initializing app:", err);
+        setState(s => ({ ...s, error: err }));
       } finally {
-        // This is crucial to remove the initial loading spinner
+        // 4. Once all initial data (public and private) is loaded, turn off the spinner.
         setState(s => ({ ...s, loading: false }));
       }
     };
     
-    getSession();
+    initializeApp();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setState(s => ({ ...s, session, user: session?.user ?? null }));
-      if (session?.user) {
-        await fetchProfile(session.user.id);
-      } else {
-        setState(s => ({ ...s, profile: null, cart: [], wishlist: [], orders: [], users: [] }));
-      }
+    // 5. Set up the auth listener for subsequent login/logout events.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+        setState(s => ({ ...s, session: newSession, user: newSession?.user ?? null }));
+        if (newSession?.user) {
+            await fetchAllUserData(newSession.user);
+        } else {
+            // Clear all user data on logout.
+            setState(s => ({ ...s, profile: null, cart: [], wishlist: [], orders: [], users: [] }));
+        }
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // --- DATA FETCHING ---
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      try {
-        const [
-          productsRes,
-          categoriesRes,
-          promotionsRes,
-          siteContentRes,
-          teamMembersRes,
-          reviewsRes,
-        ] = await Promise.all([
-          supabase.from('products').select('*').order('id'),
-          supabase.from('categories').select('*').order('name'),
-          supabase.from('promotions').select('*').order('id'),
-          supabase.from('site_content').select('*').eq('id', 1).maybeSingle(),
-          supabase.from('team_members').select('*'),
-          supabase.from('reviews').select('*'),
-        ]);
-
-        const results = [
-          { name: 'products', ...productsRes },
-          { name: 'categories', ...categoriesRes },
-          { name: 'promotions', ...promotionsRes },
-          { name: 'siteContent', ...siteContentRes },
-          { name: 'teamMembers', ...teamMembersRes },
-          { name: 'reviews', ...reviewsRes },
-        ];
-
-        for (const res of results) {
-          if (res.error) {
-            throw new Error(`Failed to fetch ${res.name}: ${res.error.message}`);
-          }
-        }
-        
-        const siteContentData = siteContentRes.data;
-        const teamMembers = teamMembersRes.data;
-        
-        const siteContentWithMembers: SiteContent | null = siteContentData ? {
-            ...(siteContentData as any),
-            team_members: teamMembers || [],
-        } : null;
-        
-        setState(s => ({ 
-            ...s, 
-            products: productsRes.data || [],
-            categories: categoriesRes.data || [],
-            promotions: promotionsRes.data || [],
-            reviews: reviewsRes.data || [],
-            siteContent: siteContentWithMembers,
-        }));
-      } catch (err: unknown) {
-        let error: Error;
-        if (err instanceof Error) {
-          error = err;
-        } else if (typeof err === 'object' && err !== null && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
-          error = new Error(`An error occurred: ${(err as { message: string }).message}`);
-        } else {
-          error = new Error('An unexpected error occurred while fetching initial data.');
-        }
-        console.error("Error fetching initial data:", error);
-        setState(s => ({ ...s, error: error }));
-      } finally {
-        setState(s => ({ ...s, dataLoading: false }));
-      }
+    return () => {
+      subscription.unsubscribe();
     };
-    fetchInitialData();
-  }, []);
-
-  // Fetch user-specific data when logged in
-  useEffect(() => {
-    const fetchUserData = async () => {
-        if (state.user) {
-            const [
-              { data: cartData },
-              { data: wishlistData },
-              { data: ordersData },
-            ] = await Promise.all([
-              supabase.from('cart_items').select('*, products(*)').eq('user_id', state.user!.id),
-              supabase.from('wishlist_items').select('product_id').eq('user_id', state.user!.id),
-              supabase.from('orders').select('*, order_items(*, products(*)), profiles(*)').eq('user_id', state.user!.id).order('created_at', { ascending: false }),
-            ]);
-
-            const cartItems: CartItem[] = (cartData || [])
-              .filter(item => item.products)
-              .map(item => ({
-                ...(item.products as Product),
-                quantity: item.quantity,
-              }));
-
-            const wishlistItems: number[] = wishlistData?.map(item => item.product_id) || [];
-
-            setState(s => ({ ...s, cart: cartItems, wishlist: wishlistItems, orders: (ordersData as any) || [] }));
-        }
-    };
-    
-    const fetchAdminData = async () => {
-        if (state.profile?.is_admin) {
-             const { data: usersData, error } = await supabase.from('profiles').select('*');
-             if(error) console.error("Error fetching users for admin:", error);
-             setState(s => ({...s, users: usersData || [] }));
-        }
-    }
-
-    fetchUserData();
-    fetchAdminData();
-  }, [state.user, state.profile]);
+  }, []); // This effect runs only once on mount.
 
 
   // --- CONTEXT FUNCTIONS ---
@@ -298,16 +247,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
   
-  const placeOrder = async (items: CartItem[], total: number) => {
+  const placeOrder = async (
+    items: CartItem[], 
+    total: number, 
+    shippingDetails: { address: string; city: string; zip: string; country: string; },
+    paymentMethod: string
+  ): Promise<Order | null> => {
     if (!state.user) return null;
     
     const { data: orderData, error: orderError } = await supabase.from('orders')
-      .insert({ user_id: state.user.id, total, status: 'Processing' })
-      .select()
+      .insert({ 
+        user_id: state.user.id, 
+        total, 
+        status: 'Pending',
+        payment_method: paymentMethod,
+        shipping_address_line1: shippingDetails.address,
+        shipping_address_city: shippingDetails.city,
+        shipping_address_zip: shippingDetails.zip,
+        shipping_address_country: shippingDetails.country,
+      })
+      .select('*, order_items(*, products(*)), profiles(*)')
       .single();
 
     if (orderError || !orderData) {
-      console.error("Order creation failed:", orderError);
+      console.error(orderError);
       return null;
     }
 
@@ -316,42 +279,55 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       product_id: item.id,
       quantity: item.quantity,
       price_at_purchase: item.sale_price ?? item.price,
-      status: 'Processing'
+      status: 'Pending'
     }));
 
     const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
     
     if (itemsError) {
-      console.error("Order items creation failed:", itemsError);
+      console.error(itemsError);
       return null;
     }
 
     await clearCart();
+    
+    const fullOrder = { ...orderData, order_items: orderItems.map(oi => ({ ...oi, products: items.find(i => i.id === oi.product_id) || null })) } as any;
 
-    const { data: newOrderData } = await supabase.from('orders').select('*, order_items(*, products(*)), profiles(*)').eq('id', orderData.id).single();
-    if(newOrderData) {
-        setState(s => ({ ...s, orders: [newOrderData as any, ...s.orders] }));
-        
-        // Trigger order confirmation email
-        try {
-            const { error: funcError } = await supabase.functions.invoke('send-order-confirmation', {
-                body: { order: newOrderData },
-            });
-            if (funcError) throw funcError;
-        } catch (error) {
-            console.error('Failed to send order confirmation email:', error);
-            // Non-critical, so we don't block the UI for this
-        }
+    setState(s => ({ ...s, orders: [fullOrder, ...s.orders] }));
+    
+    try {
+      const { error: funcError } = await supabase.functions.invoke('send-order-confirmation', {
+        body: { order: fullOrder },
+      });
+      if (funcError) throw funcError;
+    } catch (error) {
+      console.error('Failed to send order confirmation email:', error);
     }
-    return newOrderData as any;
+    
+    return fullOrder;
   };
   
   const addReview = async (reviewData: TablesInsert<'reviews'>) => {
-    if (!state.user) return;
+    if (!state.user || !state.profile) return;
     const fullReviewData = { ...reviewData, user_id: state.user.id };
     const { data, error } = await supabase.from('reviews').insert(fullReviewData).select().single();
     if (error) { console.error("Error adding review:", error); return; }
-    if (data) setState(s => ({...s, reviews: [data, ...s.reviews]}));
+    if (data) {
+        const reviewWithProfile = { ...data, profiles: { name: state.profile.name } };
+        const updatedProductList = state.products.map(p => {
+            if (p.id === data.product_id) {
+                const newReviewCount = (p.review_count || 0) + 1;
+                const newAvgRating = ((p.avg_rating || 0) * (p.review_count || 0) + data.rating) / newReviewCount;
+                return { ...p, review_count: newReviewCount, avg_rating: newAvgRating };
+            }
+            return p;
+        });
+        setState(s => ({
+            ...s,
+            reviews: [reviewWithProfile, ...s.reviews],
+            products: updatedProductList,
+        }));
+    }
   };
   
   const updateProfile = async (details: Partial<Profile>) => {
@@ -362,7 +338,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   // --- ADMIN FUNCTIONS ---
-  const addProduct = async (productData: Omit<Product, 'id' | 'created_at'>) => {
+  const addProduct = async (productData: Omit<Product, 'id' | 'created_at' | 'avg_rating' | 'review_count'>) => {
       const { data, error } = await supabase.from('products').insert(productData).select().single();
       if(error) { console.error(error); return null; }
       if(data) setState(s => ({...s, products: [data, ...s.products]}));
@@ -384,36 +360,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setState(s => ({...s, products: s.products.filter(p => p.id !== productId)}));
   };
   
-  const addCategory = async (category: TablesInsert<'categories'>) => {
-    const { data, error } = await supabase.from('categories').insert(category).select().single();
-    if (error) { console.error(error); return; }
-    if (data) setState(s => ({ ...s, categories: [...s.categories, data].sort((a,b) => a.name.localeCompare(b.name)) }));
+  const addCategory = async (categoryData: TablesInsert<'categories'>) => {
+    const { data, error } = await supabase.from('categories').insert(categoryData).select().single();
+    if (error) { console.error(error); throw error; }
+    if (data) {
+        setState(s => ({
+            ...s,
+            categories: [...s.categories, data].sort((a,b) => (a.display_order || 99) - (b.display_order || 99))
+        }));
+    }
   };
 
-  const updateCategory = async (category: TablesUpdate<'categories'> & { id: number; name: string }) => {
-    const oldCategory = state.categories.find(c => c.id === category.id);
-    if (!oldCategory) return;
-    const oldName = oldCategory.name;
-    const newName = category.name;
-
-    const { data, error } = await supabase.from('categories').update(category).eq('id', category.id).select().single();
-    if (error) { console.error(error); return; }
-    
-    if(data) {
-        const updatedCategories = state.categories.map(c => c.id === data.id ? data : c);
-        
-        if (oldName && newName && oldName !== newName) {
-            const productsToUpdate = state.products.filter(p => p.categories?.includes(oldName));
-            for (const p of productsToUpdate) {
-                const newCategories = p.categories?.map(c => c === oldName ? newName : c);
-                await supabase.from('products').update({ categories: newCategories }).eq('id', p.id);
-            }
-            const { data: products } = await supabase.from('products').select('*');
-            setState(s => ({ ...s, categories: updatedCategories, products: products || s.products }));
-        } else {
-            setState(s => ({ ...s, categories: updatedCategories }));
-        }
+  const updateCategory = async (id: number, categoryData: TablesUpdate<'categories'>) => {
+    const { data, error } = await supabase.from('categories').update(categoryData).eq('id', id).select().single();
+    if (error) { console.error(error); throw error; }
+    if (data) {
+        setState(s => ({
+            ...s,
+            categories: s.categories.map(c => c.id === id ? data : c).sort((a,b) => (a.display_order || 99) - (b.display_order || 99))
+        }));
     }
+  };
+  
+  const renameCategoryAndUpdateProducts = async (id: number, oldName: string, newName: string) => {
+    const { error } = await supabase.rpc('update_category_and_products', {
+      p_category_id: id,
+      p_new_name: newName,
+    });
+    
+    if (error) {
+      console.error("Error renaming category via RPC:", error);
+      throw error;
+    }
+    
+    const { data: products } = await supabase.from('products').select('*');
+    const { data: categories } = await supabase.from('categories').select('*').order('display_order');
+    setState(s => ({ ...s, products: products || [], categories: categories || [] }));
   };
 
   const deleteCategory = async (id: number) => {
@@ -445,12 +427,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const { team_members, ...contentData } = content;
     const { data, error } = await supabase.from('site_content').update(contentData).eq('id', 1).select().single();
     if(error) { console.error(error); return; }
-    if(data) {
-        setState(s => ({
-            ...s, 
-            siteContent: {...s.siteContent!, ...data} as SiteContent
-        }));
-    }
+    if(data && state.siteContent) setState(s => ({...s, siteContent: {...state.siteContent!, ...data} as SiteContent}));
   };
   
   const updateTeamMembers = async (members: TeamMember[]) => {
@@ -467,26 +444,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const updateOrderStatus = async (orderId: number, status: string) => {
     const { error } = await supabase.from('orders').update({ status }).eq('id', orderId);
-    if (error) {
-      console.error(error);
-      return;
-    }
-    setState(s => ({
-      ...s,
-      orders: s.orders.map(o => o.id === orderId ? { ...o, status } : o)
-    }));
+    if (error) { console.error(error); return; }
+    setState(s => ({ ...s, orders: s.orders.map(o => o.id === orderId ? { ...o, status } : o) }));
 
-    // Trigger email notification for shipping updates
-    if (status === 'Shipped' || status === 'Delivered') {
-      try {
-        const { error: funcError } = await supabase.functions.invoke('send-shipping-update', {
-          body: { orderId, status },
-        });
-        if (funcError) throw funcError;
-      } catch (error) {
-        console.error('Failed to send shipping update email:', error);
-        // Non-critical error, so we just log it.
-      }
+    try {
+      const { error: funcError } = await supabase.functions.invoke('send-shipping-update', {
+        body: { orderId, status },
+      });
+      if (funcError) throw funcError;
+    } catch (error) {
+      console.error('Failed to send shipping update email:', error);
     }
   };
 
@@ -497,7 +464,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ...s,
         orders: s.orders.map(o => ({
             ...o,
-            items: o.items.map(i => i.id === itemId ? { ...i, status } as any : i)
+            order_items: o.order_items.map(i => i.id === itemId ? { ...i, status } as any : i)
         }))
     }));
   };
@@ -517,6 +484,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     deleteProduct,
     addCategory,
     updateCategory,
+    renameCategoryAndUpdateProducts,
     deleteCategory,
     addPromotion,
     updatePromotion,

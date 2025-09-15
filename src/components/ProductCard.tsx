@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Product } from '../types';
 import { useAppContext } from '../context/AppContext';
+import StarRating from './StarRating';
 
 interface ProductCardProps {
   product: Product;
@@ -71,6 +72,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                 <div>
                     <p className="text-sm text-gray-500 mt-1">{product.categories?.join(', ')}</p>
                     <h3 className="text-lg font-semibold text-gray-800 truncate mt-2">{product.name}</h3>
+                    <div className="flex justify-center mt-2">
+                      <StarRating rating={product.avg_rating || 0} reviewCount={product.review_count || 0} />
+                    </div>
                 </div>
                 <div className="mt-4">
                     {isSale ? (

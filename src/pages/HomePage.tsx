@@ -6,7 +6,6 @@ import ImageSlider from '../components/ImageSlider';
 import PromotionSlider from '../components/PromotionSlider';
 import SocialPostCard from '../components/SocialPostCard';
 import SalesBanner from '../components/SalesBanner';
-import Spinner from '../components/Spinner';
 
 // Icons for TrustBadges
 const SecurePaymentIcon = () => (
@@ -36,12 +35,15 @@ const mockSocialPosts = [
 ];
 
 const HomePage: React.FC = () => {
-  const { products, promotions, categories, siteContent, dataLoading } = useAppContext();
+  const { products, promotions, categories, siteContent } = useAppContext();
   const sliderProducts = products.slice(0, 5);
   const activePromotions = promotions.filter(p => p.is_active);
 
   // For category highlights - Now dynamic from the admin panel
-  const highlightedCategories = categories.filter(c => c.is_highlighted).slice(0, 4);
+  const highlightedCategories = categories
+    .filter(c => c.is_highlighted)
+    .sort((a, b) => (a.display_order ?? 99) - (b.display_order ?? 99))
+    .slice(0, 4);
 
   return (
     <>
@@ -85,15 +87,11 @@ const HomePage: React.FC = () => {
 
         <section>
           <h2 className="text-2xl md:text-3xl font-bold text-center mb-8">Featured Products</h2>
-          {dataLoading ? (
-            <Spinner />
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-24 pt-16">
-              {products.slice(0, 6).map(product => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
-          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-24 pt-16">
+            {products.slice(0, 6).map(product => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
         </section>
 
         {/* Trust & Security Badges Section */}

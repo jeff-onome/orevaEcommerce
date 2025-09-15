@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 
 const InstagramIcon: React.FC = () => (
@@ -35,47 +36,42 @@ const WhatsAppIcon: React.FC = () => (
 
 const Footer: React.FC = () => {
   const { siteContent } = useAppContext();
-  const instagramHandle = siteContent?.social_instagram || '';
-  const tiktokHandle = siteContent?.social_tiktok || '';
-  const facebookHandle = siteContent?.social_facebook || '';
-  const twitterHandle = siteContent?.social_twitter || '';
-  const whatsappHandle = siteContent?.social_whatsapp || '';
 
   return (
     <footer className="bg-gray-800 text-white mt-auto">
       <div className="container mx-auto px-4 py-6 text-center">
         <div className="flex justify-center space-x-6 mb-4">
-            {facebookHandle && (
-              <a href={`https://facebook.com/${facebookHandle}`} target="_blank" rel="noopener noreferrer" className="hover:text-secondary transition-colors" aria-label="Facebook">
+            {siteContent?.social_facebook && (
+              <a href={`https://facebook.com/${siteContent.social_facebook}`} target="_blank" rel="noopener noreferrer" className="hover:text-secondary transition-colors" aria-label="Facebook">
                   <FacebookIcon />
               </a>
             )}
-            {twitterHandle && (
-              <a href={`https://twitter.com/${twitterHandle}`} target="_blank" rel="noopener noreferrer" className="hover:text-secondary transition-colors" aria-label="Twitter">
+            {siteContent?.social_twitter && (
+              <a href={`https://twitter.com/${siteContent.social_twitter}`} target="_blank" rel="noopener noreferrer" className="hover:text-secondary transition-colors" aria-label="Twitter">
                   <TwitterIcon />
               </a>
             )}
-            {instagramHandle && (
-              <a href={`https://instagram.com/${instagramHandle}`} target="_blank" rel="noopener noreferrer" className="hover:text-secondary transition-colors" aria-label="Instagram">
+            {siteContent?.social_instagram && (
+              <a href={`https://instagram.com/${siteContent.social_instagram}`} target="_blank" rel="noopener noreferrer" className="hover:text-secondary transition-colors" aria-label="Instagram">
                   <InstagramIcon />
               </a>
             )}
-            {tiktokHandle && (
-              <a href={`https://tiktok.com/${tiktokHandle}`} target="_blank" rel="noopener noreferrer" className="hover:text-secondary transition-colors" aria-label="TikTok">
+            {siteContent?.social_tiktok && (
+              <a href={`https://tiktok.com/@${siteContent.social_tiktok}`} target="_blank" rel="noopener noreferrer" className="hover:text-secondary transition-colors" aria-label="TikTok">
                   <TikTokIcon />
               </a>
             )}
-            {whatsappHandle && (
-              <a href={`https://wa.me/${whatsappHandle}`} target="_blank" rel="noopener noreferrer" className="hover:text-secondary transition-colors" aria-label="WhatsApp">
+            {siteContent?.social_whatsapp && (
+              <a href={`https://wa.me/${siteContent.social_whatsapp}`} target="_blank" rel="noopener noreferrer" className="hover:text-secondary transition-colors" aria-label="WhatsApp">
                   <WhatsAppIcon />
               </a>
             )}
         </div>
         <p>&copy; {new Date().getFullYear()} {siteContent?.site_name || 'E-Shop Pro'}. All Rights Reserved.</p>
         <div className="flex flex-col sm:flex-row items-center sm:space-y-0 space-y-2 justify-center sm:space-x-4 mt-4">
-          <a href="#" className="hover:text-secondary transition-colors">Privacy Policy</a>
-          <a href="#" className="hover:text-secondary transition-colors">Terms of Service</a>
-          <a href="#" className="hover:text-secondary transition-colors">Contact Us</a>
+          <Link to="/privacy-policy" className="hover:text-secondary transition-colors">Privacy Policy</Link>
+          <Link to="/terms-of-service" className="hover:text-secondary transition-colors">Terms of Service</Link>
+          <Link to="/contact" className="hover:text-secondary transition-colors">Contact Us</Link>
         </div>
       </div>
     </footer>

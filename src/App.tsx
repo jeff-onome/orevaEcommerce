@@ -1,7 +1,5 @@
-
-
 import React, { useEffect, Suspense, lazy } from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import { useAppContext } from './context/AppContext';
@@ -23,10 +21,13 @@ const OrderHistoryPage = lazy(() => import('./pages/OrderHistoryPage'));
 const OrderDetailsPage = lazy(() => import('./pages/OrderDetailsPage'));
 const UserProfilePage = lazy(() => import('./pages/UserProfilePage'));
 const WishlistPage = lazy(() => import('./pages/WishlistPage'));
+const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
+const TermsOfServicePage = lazy(() => import('./pages/TermsOfServicePage'));
+const UpdatePasswordPage = lazy(() => import('./pages/UpdatePasswordPage'));
 
 
 const App: React.FC = () => {
-  const { loading, dataLoading, siteContent, profile, session } = useAppContext();
+  const { loading, siteContent, profile, session } = useAppContext();
 
   useEffect(() => {
     if (siteContent) {
@@ -38,7 +39,7 @@ const App: React.FC = () => {
     }
   }, [siteContent]);
 
-  if (loading || dataLoading) {
+  if (loading) {
     return (
       <div className="flex flex-col min-h-screen items-center justify-center">
         <Spinner />
@@ -50,38 +51,39 @@ const App: React.FC = () => {
   const isAdmin = profile?.is_admin === true;
 
   return (
-    <HashRouter>
-      <div className="flex flex-col min-h-screen">
-        <Header />
-        <main className="flex-grow container mx-auto px-4 py-8">
-          <ErrorBoundary>
-            <Suspense fallback={<div className="flex-grow flex items-center justify-center"><Spinner /></div>}>
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/shop" element={<ShopPage />} />
-                <Route path="/product/:id" element={<ProductDetailPage />} />
-                <Route path="/cart" element={<CartPage />} />
-                <Route path="/login" element={isAuthenticated ? <Navigate to="/profile" /> : <LoginPage />} />
-                <Route path="/about" element={<AboutPage />} />
-                <Route path="/services" element={<ServicesPage />} />
-                <Route path="/contact" element={<ContactPage />} />
-                
-                {/* Protected Routes */}
-                <Route path="/checkout" element={isAuthenticated ? <CheckoutPage /> : <Navigate to="/login" />} />
-                <Route path="/orders" element={isAuthenticated ? <OrderHistoryPage /> : <Navigate to="/login" />} />
-                <Route path="/orders/:id" element={isAuthenticated ? <OrderDetailsPage /> : <Navigate to="/login" />} />
-                <Route path="/profile" element={isAuthenticated ? <UserProfilePage /> : <Navigate to="/login" />} />
-                <Route path="/wishlist" element={isAuthenticated ? <WishlistPage /> : <Navigate to="/login" />} />
-                
-                {/* Admin Route */}
-                <Route path="/admin" element={isAdmin ? <AdminPage /> : <Navigate to="/" />} />
-              </Routes>
-            </Suspense>
-          </ErrorBoundary>
-        </main>
-        <Footer />
-      </div>
-    </HashRouter>
+    <div className="flex flex-col min-h-screen">
+      <Header />
+      <main className="flex-grow container mx-auto px-4 py-8">
+        <ErrorBoundary>
+          <Suspense fallback={<div className="flex-grow flex items-center justify-center"><Spinner /></div>}>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/shop" element={<ShopPage />} />
+              <Route path="/product/:id" element={<ProductDetailPage />} />
+              <Route path="/cart" element={<CartPage />} />
+              <Route path="/login" element={isAuthenticated ? <Navigate to="/profile" /> : <LoginPage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/services" element={<ServicesPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+              <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+              <Route path="/update-password" element={<UpdatePasswordPage />} />
+              
+              {/* Protected Routes */}
+              <Route path="/checkout" element={isAuthenticated ? <CheckoutPage /> : <Navigate to="/login" />} />
+              <Route path="/orders" element={isAuthenticated ? <OrderHistoryPage /> : <Navigate to="/login" />} />
+              <Route path="/orders/:id" element={isAuthenticated ? <OrderDetailsPage /> : <Navigate to="/login" />} />
+              <Route path="/profile" element={isAuthenticated ? <UserProfilePage /> : <Navigate to="/login" />} />
+              <Route path="/wishlist" element={isAuthenticated ? <WishlistPage /> : <Navigate to="/login" />} />
+              
+              {/* Admin Route */}
+              <Route path="/admin" element={isAdmin ? <AdminPage /> : <Navigate to="/" />} />
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
+      </main>
+      <Footer />
+    </div>
   );
 };
 

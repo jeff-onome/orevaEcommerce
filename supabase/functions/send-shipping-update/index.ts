@@ -18,12 +18,27 @@ const createShippingUpdateHtml = (order: any, status: string, siteContent: any):
   
   let title = '';
   let message = '';
-  if (status === 'Shipped') {
-    title = 'Your Order is on its way!';
-    message = `We're happy to let you know that your order #${orderId} has been shipped. You can expect it to arrive soon.`;
-  } else if (status === 'Delivered') {
-    title = 'Your Order has been Delivered!';
-    message = `Your order #${orderId} has been successfully delivered. We hope you enjoy your products!`;
+
+  switch (status) {
+    case 'Processing':
+      title = 'Your Order is Being Processed!';
+      message = `We're getting your order #${orderId} ready for shipment. We will notify you again once it has been shipped.`;
+      break;
+    case 'Shipped':
+      title = 'Your Order is on its way!';
+      message = `We're happy to let you know that your order #${orderId} has been shipped. You can expect it to arrive soon.`;
+      break;
+    case 'Delivered':
+      title = 'Your Order has been Delivered!';
+      message = `Your order #${orderId} has been successfully delivered. We hope you enjoy your products!`;
+      break;
+    case 'Cancelled':
+      title = 'Your Order has been Cancelled';
+      message = `We have cancelled your order #${orderId} as requested. If you have any questions, please contact our support team.`;
+      break;
+    default:
+      title = 'Update on your Order';
+      message = `There is an update on your order #${orderId}. The new status is: ${status}.`;
   }
 
   return `

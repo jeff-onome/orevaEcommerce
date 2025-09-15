@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
@@ -12,6 +11,18 @@ const CheckoutPage: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState('paystack');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [shippingDetails, setShippingDetails] = useState({
+    name: profile?.name || '',
+    email: session?.user.email || '',
+    address: '',
+    city: '',
+    zip: '',
+    country: profile?.country || 'Nigeria',
+  });
+
+  const handleShippingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setShippingDetails(prev => ({...prev, [e.target.name]: e.target.value}));
+  }
   
   const getItemPrice = (item: CartItem) => {
     return (item.sale_price && item.sale_price < item.price) ? item.sale_price : item.price;
@@ -33,7 +44,7 @@ const CheckoutPage: React.FC = () => {
 
     setIsProcessing(true);
     
-    const newOrder = await placeOrder(cart, total);
+    const newOrder = await placeOrder(cart, total, shippingDetails, paymentMethod);
 
     setIsProcessing(false);
     if (newOrder) {
@@ -54,12 +65,12 @@ const CheckoutPage: React.FC = () => {
         <div className="bg-surface p-8 rounded-lg shadow-xl">
           <h2 className="text-2xl font-bold mb-6">Shipping Information</h2>
           <form className="space-y-4">
-            <input type="text" placeholder="Full Name" className="w-full p-3 border rounded-md" defaultValue={profile?.name || ''} />
-            <input type="email" placeholder="Email Address" className="w-full p-3 border rounded-md" defaultValue={session?.user.email || ''} />
-            <input type="text" placeholder="Address" className="w-full p-3 border rounded-md" />
+            <input name="name" type="text" placeholder="Full Name" className="w-full p-3 border rounded-md" value={shippingDetails.name} onChange={handleShippingChange} required />
+            <input name="email" type="email" placeholder="Email Address" className="w-full p-3 border rounded-md" value={shippingDetails.email} disabled />
+            <input name="address" type="text" placeholder="Address" className="w-full p-3 border rounded-md" value={shippingDetails.address} onChange={handleShippingChange} required />
             <div className="flex space-x-4">
-              <input type="text" placeholder="City" className="w-full p-3 border rounded-md" />
-              <input type="text" placeholder="ZIP Code" className="w-full p-3 border rounded-md" />
+              <input name="city" type="text" placeholder="City" className="w-full p-3 border rounded-md" value={shippingDetails.city} onChange={handleShippingChange} required />
+              <input name="zip" type="text" placeholder="ZIP Code" className="w-full p-3 border rounded-md" value={shippingDetails.zip} onChange={handleShippingChange} required />
             </div>
           </form>
 

@@ -31,7 +31,7 @@ const RatingsAndReviews: React.FC = () => {
 
     const userPurchasedItems = orders
         .filter(o => o.user_id === session?.user.id && o.status === 'Delivered')
-        .flatMap(o => o.items)
+        .flatMap(o => o.order_items)
         // FIX: Filter out items where the product might have been deleted
         .filter(item => item.products)
         .filter((item, index, self) => index === self.findIndex(t => t.product_id === item.product_id)); // Unique items by product_id

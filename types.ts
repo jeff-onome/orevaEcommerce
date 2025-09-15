@@ -107,6 +107,11 @@ export type Database = {
         Row: {
           created_at: string | null
           id: number
+          payment_method: string | null
+          shipping_address_city: string | null
+          shipping_address_country: string | null
+          shipping_address_line1: string | null
+          shipping_address_zip: string | null
           status: string
           total: number
           user_id: string
@@ -114,6 +119,11 @@ export type Database = {
         Insert: {
           created_at?: string | null
           id?: number
+          payment_method?: string | null
+          shipping_address_city?: string | null
+          shipping_address_country?: string | null
+          shipping_address_line1?: string | null
+          shipping_address_zip?: string | null
           status?: string
           total: number
           user_id: string
@@ -121,6 +131,11 @@ export type Database = {
         Update: {
           created_at?: string | null
           id?: number
+          payment_method?: string | null
+          shipping_address_city?: string | null
+          shipping_address_country?: string | null
+          shipping_address_line1?: string | null
+          shipping_address_zip?: string | null
           status?: string
           total?: number
           user_id?: string
@@ -301,10 +316,10 @@ export type Database = {
           sales_banner_is_active: boolean | null
           sales_banner_subtitle: string | null
           sales_banner_title: string | null
+          sender_email: string | null
           site_name: string | null
           social_instagram: string | null
           social_tiktok: string | null
-          // FIX: Added missing social media fields to the site_content Row type.
           social_facebook: string | null
           social_twitter: string | null
           social_whatsapp: string | null
@@ -331,10 +346,10 @@ export type Database = {
           sales_banner_is_active?: boolean | null
           sales_banner_subtitle?: string | null
           sales_banner_title?: string | null
+          sender_email?: string | null
           site_name?: string | null
           social_instagram?: string | null
           social_tiktok?: string | null
-          // FIX: Added missing social media fields to the site_content Insert type.
           social_facebook?: string | null
           social_twitter?: string | null
           social_whatsapp?: string | null
@@ -361,10 +376,10 @@ export type Database = {
           sales_banner_is_active?: boolean | null
           sales_banner_subtitle?: string | null
           sales_banner_title?: string | null
+          sender_email?: string | null
           site_name?: string | null
           social_instagram?: string | null
           social_tiktok?: string | null
-          // FIX: Added missing social media fields to the site_content Update type.
           social_facebook?: string | null
           social_twitter?: string | null
           social_whatsapp?: string | null
@@ -569,7 +584,7 @@ export type OrderItem = Tables<'order_items'> & { products: Product | null };
 
 // Order includes related items and user info
 export interface Order extends Tables<'orders'> {
-    items: OrderItem[];
+    order_items: OrderItem[];
     profiles: Profile | null;
 }
 

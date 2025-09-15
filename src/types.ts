@@ -47,15 +47,24 @@ export type Database = {
       }
       categories: {
         Row: {
+          display_order: number | null
           id: number
+          image_url: string | null
+          is_highlighted: boolean | null
           name: string
         }
         Insert: {
+          display_order?: number | null
           id?: number
+          image_url?: string | null
+          is_highlighted?: boolean | null
           name: string
         }
         Update: {
+          display_order?: number | null
           id?: number
+          image_url?: string | null
+          is_highlighted?: boolean | null
           name?: string
         }
         Relationships: []
@@ -106,6 +115,11 @@ export type Database = {
         Row: {
           created_at: string | null
           id: number
+          payment_method: string | null
+          shipping_address_city: string | null
+          shipping_address_country: string | null
+          shipping_address_line1: string | null
+          shipping_address_zip: string | null
           status: string
           total: number
           user_id: string
@@ -113,6 +127,11 @@ export type Database = {
         Insert: {
           created_at?: string | null
           id?: number
+          payment_method?: string | null
+          shipping_address_city?: string | null
+          shipping_address_country?: string | null
+          shipping_address_line1?: string | null
+          shipping_address_zip?: string | null
           status?: string
           total: number
           user_id: string
@@ -120,6 +139,11 @@ export type Database = {
         Update: {
           created_at?: string | null
           id?: number
+          payment_method?: string | null
+          shipping_address_city?: string | null
+          shipping_address_country?: string | null
+          shipping_address_line1?: string | null
+          shipping_address_zip?: string | null
           status?: string
           total?: number
           user_id?: string
@@ -136,6 +160,7 @@ export type Database = {
       }
       products: {
         Row: {
+          avg_rating: number | null
           categories: string[] | null
           created_at: string | null
           description: string | null
@@ -143,10 +168,12 @@ export type Database = {
           image_url: string | null
           name: string
           price: number
+          review_count: number | null
           sale_price: number | null
           stock: number
         }
         Insert: {
+          avg_rating?: number | null
           categories?: string[] | null
           created_at?: string | null
           description?: string | null
@@ -154,10 +181,12 @@ export type Database = {
           image_url?: string | null
           name: string
           price: number
+          review_count?: number | null
           sale_price?: number | null
           stock: number
         }
         Update: {
+          avg_rating?: number | null
           categories?: string[] | null
           created_at?: string | null
           description?: string | null
@@ -165,6 +194,7 @@ export type Database = {
           image_url?: string | null
           name?: string
           price?: number
+          review_count?: number | null
           sale_price?: number | null
           stock?: number
         }
@@ -173,6 +203,7 @@ export type Database = {
       profiles: {
         Row: {
           country: string | null
+          email: string | null
           id: string
           is_admin: boolean | null
           name: string | null
@@ -180,6 +211,7 @@ export type Database = {
         }
         Insert: {
           country?: string | null
+          email?: string | null
           id: string
           is_admin?: boolean | null
           name?: string | null
@@ -187,6 +219,7 @@ export type Database = {
         }
         Update: {
           country?: string | null
+          email?: string | null
           id?: string
           is_admin?: boolean | null
           name?: string | null
@@ -296,16 +329,19 @@ export type Database = {
           hero_subtitle: string | null
           hero_title: string | null
           id: number
+          privacy_policy_content: string | null
           sales_banner_end_date: string | null
           sales_banner_is_active: boolean | null
           sales_banner_subtitle: string | null
           sales_banner_title: string | null
+          sender_email: string | null
           site_name: string | null
+          social_facebook: string | null
           social_instagram: string | null
           social_tiktok: string | null
-          social_facebook: string | null
-          social_whatsapp: string | null
           social_twitter: string | null
+          social_whatsapp: string | null
+          terms_of_service_content: string | null
           theme_accent: string | null
           theme_primary: string | null
           theme_secondary: string | null
@@ -325,16 +361,19 @@ export type Database = {
           hero_subtitle?: string | null
           hero_title?: string | null
           id?: number
+          privacy_policy_content?: string | null
           sales_banner_end_date?: string | null
           sales_banner_is_active?: boolean | null
           sales_banner_subtitle?: string | null
           sales_banner_title?: string | null
+          sender_email?: string | null
           site_name?: string | null
+          social_facebook?: string | null
           social_instagram?: string | null
           social_tiktok?: string | null
-          social_facebook?: string | null
-          social_whatsapp?: string | null
           social_twitter?: string | null
+          social_whatsapp?: string | null
+          terms_of_service_content?: string | null
           theme_accent?: string | null
           theme_primary?: string | null
           theme_secondary?: string | null
@@ -354,16 +393,19 @@ export type Database = {
           hero_subtitle?: string | null
           hero_title?: string | null
           id?: number
+          privacy_policy_content?: string | null
           sales_banner_end_date?: string | null
           sales_banner_is_active?: boolean | null
           sales_banner_subtitle?: string | null
           sales_banner_title?: string | null
+          sender_email?: string | null
           site_name?: string | null
+          social_facebook?: string | null
           social_instagram?: string | null
           social_tiktok?: string | null
-          social_facebook?: string | null
-          social_whatsapp?: string | null
           social_twitter?: string | null
+          social_whatsapp?: string | null
+          terms_of_service_content?: string | null
           theme_accent?: string | null
           theme_primary?: string | null
           theme_secondary?: string | null
@@ -455,6 +497,13 @@ export type Database = {
           email_change_token_current: string
           email_change_sent_at: string
         }
+      }
+      update_category_and_products: {
+        Args: {
+          p_category_id: number
+          p_new_name: string
+        }
+        Returns: undefined
       }
     }
     Enums: {
@@ -553,7 +602,7 @@ export type Profile = Tables<'profiles'>;
 export type Promotion = Tables<'promotions'>;
 export type Category = Tables<'categories'>;
 export type TeamMember = Tables<'team_members'>;
-export type Review = Tables<'reviews'>;
+export type Review = Tables<'reviews'> & { profiles?: Pick<Profile, 'name'> | null };
 
 // CartItem is a product with a quantity property, derived from cart_items table
 export interface CartItem extends Product {
@@ -565,7 +614,7 @@ export type OrderItem = Tables<'order_items'> & { products: Product | null };
 
 // Order includes related items and user info
 export interface Order extends Tables<'orders'> {
-    items: OrderItem[];
+    order_items: OrderItem[];
     profiles: Profile | null;
 }
 
