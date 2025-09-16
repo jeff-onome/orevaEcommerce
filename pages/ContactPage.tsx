@@ -1,3 +1,4 @@
+
 import React from 'react';
 import Button from '../components/Button';
 import { useAppContext } from '../context/AppContext';
@@ -54,7 +55,7 @@ const ContactPage: React.FC = () => {
             <input type="text" placeholder="Your Name" className="w-full p-3 border rounded-md focus:ring-2 focus:ring-primary" required />
             <input type="email" placeholder="Your Email" className="w-full p-3 border rounded-md focus:ring-2 focus:ring-primary" required />
             <input type="text" placeholder="Subject" className="w-full p-3 border rounded-md focus:ring-2 focus:ring-primary" />
-            <textarea placeholder="Your Message" rows={5} className="w-full p-3 border rounded-md focus:ring-2 focus:ring-primary" required></textarea>
+            <textarea placeholder="Your Message" rows={5} className="w-full p-3 border rounded-md focus:ring-2 focus:ring-primary"></textarea>
             <Button type="submit" className="w-full">Send Message</Button>
           </form>
         </div>

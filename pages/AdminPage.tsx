@@ -1,6 +1,5 @@
 
-
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AdminTab, Product, Profile, ThemeColors, Order, Promotion, OrderItem, TeamMember, SiteContent } from '../types';
 import { useAppContext } from '../context/AppContext';
 import Button from '../components/Button';
@@ -9,18 +8,7 @@ import AdminProductForm from '../components/AdminProductForm';
 import Modal from '../components/Modal';
 import SimpleBarChart from '../components/SimpleBarChart';
 import AdminPromotionForm from '../components/AdminPromotionForm';
-
-const AnalyticsStatCard: React.FC<{ title: string; value: string; icon: React.ReactNode }> = ({ title, value, icon }) => (
-    <div className="bg-gray-50 p-6 rounded-lg flex items-center space-x-4 shadow-sm">
-        <div className="bg-primary/10 text-primary p-3 rounded-full">
-            {icon}
-        </div>
-        <div>
-            <p className="text-sm text-gray-500">{title}</p>
-            <p className="text-2xl font-bold">{value}</p>
-        </div>
-    </div>
-);
+import ImageCropModal from '../components/ImageCropModal';
 
 const AdminPage: React.FC = () => {
   const { 
@@ -40,16 +28,14 @@ const AdminPage: React.FC = () => {
     deleteCategory,
     addProduct,
     updateProduct,
-    deleteProduct,
     addPromotion,
     deletePromotion
   } = useAppContext();
   
-  const [activeTab, setActiveTab] = useState<AdminTab>(AdminTab.USERS);
+  const [activeTab, setActiveTab] = useState<AdminTab>(AdminTab.PRODUCTS);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
-  const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   
   // Category editing state
   const [isEditCategoryModalOpen, setIsEditCategoryModalOpen] = useState(false);
@@ -94,7 +80,6 @@ const AdminPage: React.FC = () => {
 
   // Order viewing state
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
-  const [filteredUser, setFilteredUser] = useState<Profile | null>(null);
 
   // Search state
   const [searchQueries, setSearchQueries] = useState({
@@ -104,8 +89,9 @@ const AdminPage: React.FC = () => {
     [AdminTab.ORDERS]: '',
   });
   
-  // Image Uploading State
-  const [pendingUpload, setPendingUpload] = useState<{ imageSrc: string; onConfirm: () => void } | null>(null);
+  // Image Cropping State
+  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
+  const [cropConfig, setCropConfig] = useState<{ callback: (img: string) => void; aspectRatio?: number } | null>(null);
 
   const handleSearchChange = (tab: AdminTab, query: string) => {
     setSearchQueries(prev => ({ ...prev, [tab]: query }));
@@ -127,30 +113,13 @@ const AdminPage: React.FC = () => {
     setEditingProduct(undefined);
   };
 
-  const handleDeleteProduct = (product: Product) => {
-    setDeletingProduct(product);
-  };
-
-  const confirmDeleteProduct = async () => {
-    if (deletingProduct) {
-        try {
-            await deleteProduct(deletingProduct.id);
-            alert('Product deleted successfully!');
-        } catch (error: any) {
-            alert(`Error: ${error.message}`);
-        } finally {
-            setDeletingProduct(null);
-        }
-    }
-  };
-
   const handleOrderItemStatusChange = (orderId: number, itemId: number, status: string) => {
     updateOrderItemStatus(itemId, status);
     if (viewingOrder) {
-        const updatedItems = viewingOrder.order_items.map(item => 
+        const updatedItems = viewingOrder.items.map(item => 
             item.id === itemId ? { ...item, status } : item
         );
-        setViewingOrder({ ...viewingOrder, order_items: updatedItems as any });
+        setViewingOrder({ ...viewingOrder, items: updatedItems as any });
     }
   };
 
@@ -242,13 +211,11 @@ const AdminPage: React.FC = () => {
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
-        setPendingUpload({
-            imageSrc: result,
-            onConfirm: () => {
-                handleSiteContentChange('about_story_image_url', result);
-                setPendingUpload(null);
-            }
+        setCropConfig({
+            callback: (img) => handleSiteContentChange('about_story_image_url', img),
+            aspectRatio: 1.5,
         });
+        setImageToCrop(result);
       };
       reader.readAsDataURL(file);
     }
@@ -260,16 +227,20 @@ const AdminPage: React.FC = () => {
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
-        setPendingUpload({
-            imageSrc: result,
-            onConfirm: () => {
-                setEditingTeamMember(p => p ? ({ ...p, image_url: result }) : null);
-                setPendingUpload(null);
-            }
+        setCropConfig({
+            callback: (img) => setEditingTeamMember(p => p ? ({ ...p, image_url: img }) : null),
+            aspectRatio: 1,
         });
+        setImageToCrop(result);
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleCropComplete = (croppedImageUrl: string) => {
+    cropConfig?.callback(croppedImageUrl);
+    setImageToCrop(null);
+    setCropConfig(null);
   };
 
   const handleSaveTeamMember = () => {
@@ -300,66 +271,6 @@ const AdminPage: React.FC = () => {
         setTeamMembers(updatedMembers);
     }
   };
-
-  // --- ANALYTICS DATA CALCULATION ---
-  const analyticsData = useMemo(() => {
-    const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0);
-    const totalOrders = orders.length;
-    const totalCustomers = users.filter(u => !u.is_admin).length;
-    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-    
-    return {
-      totalRevenue,
-      totalOrders,
-      totalCustomers,
-      avgOrderValue,
-    };
-  }, [orders, users]);
-  
-  const salesLast7DaysData = useMemo(() => {
-    const last7Days = Array.from({ length: 7 }, (_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        return d;
-    }).reverse();
-
-    return last7Days.map(date => {
-        const dayLabel = date.toLocaleDateString('en-US', { weekday: 'short' });
-        const dayStart = new Date(date.setHours(0, 0, 0, 0)).toISOString();
-        const dayEnd = new Date(date.setHours(23, 59, 59, 999)).toISOString();
-
-        const total = orders
-            .filter(o => o.created_at && o.created_at >= dayStart && o.created_at <= dayEnd)
-            .reduce((sum, o) => sum + o.total, 0);
-        
-        return { label: dayLabel, value: Math.round(total) };
-    });
-  }, [orders]);
-  
-  const topSellingProductsData = useMemo(() => {
-    const productSales = new Map<number, { name: string; quantity: number }>();
-    
-    orders.forEach(order => {
-        order.order_items.forEach(item => {
-            const existing = productSales.get(item.product_id);
-            const productName = item.products?.name || 'Unknown Product';
-            productSales.set(item.product_id, {
-                name: productName,
-                quantity: (existing?.quantity || 0) + item.quantity,
-            });
-        });
-    });
-
-    return Array.from(productSales.values())
-        .sort((a, b) => b.quantity - a.quantity)
-        .slice(0, 5)
-        .map(p => ({ label: p.name, value: p.quantity }));
-  }, [orders]);
-  
-  const lowStockProducts = useMemo(() => {
-    return products.filter(p => p.stock < 10).sort((a, b) => a.stock - b.stock);
-  }, [products]);
-
 
   const renderContent = () => {
     switch (activeTab) {
@@ -394,7 +305,7 @@ const AdminPage: React.FC = () => {
                     </thead>
                     <tbody>
                         {filteredProducts.length > 0 ? (
-                            filteredProducts.map(p => <AdminProductRow key={p.id} product={p} onEdit={handleEditProduct} onDelete={handleDeleteProduct} />)
+                            filteredProducts.map(p => <AdminProductRow key={p.id} product={p} onEdit={handleEditProduct} />)
                         ) : (
                             <tr>
                                 <td colSpan={4} className="text-center py-8 text-gray-500">No products found.</td>
@@ -498,7 +409,6 @@ const AdminPage: React.FC = () => {
                             <th className="py-3 px-4 text-left">Phone</th>
                             <th className="py-3 px-4 text-left">Country</th>
                             <th className="py-3 px-4 text-left">Admin</th>
-                            <th className="py-3 px-4 text-left">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -513,19 +423,11 @@ const AdminPage: React.FC = () => {
                                           {user.is_admin ? 'Yes' : 'No'}
                                       </span>
                                     </td>
-                                    <td className="py-3 px-4">
-                                        <button 
-                                            onClick={() => { setFilteredUser(user); setActiveTab(AdminTab.ORDERS); }} 
-                                            className="text-sm text-indigo-600 hover:text-indigo-900"
-                                        >
-                                            View Orders
-                                        </button>
-                                    </td>
                                 </tr>
                             ))
                         ) : (
                              <tr>
-                                <td colSpan={5} className="text-center py-8 text-gray-500">No users found.</td>
+                                <td colSpan={4} className="text-center py-8 text-gray-500">No users found.</td>
                             </tr>
                         )}
                     </tbody>
@@ -535,22 +437,10 @@ const AdminPage: React.FC = () => {
         );
       case AdminTab.ORDERS:
         const searchQuery = searchQueries[AdminTab.ORDERS].toLowerCase();
-        const ordersToDisplay = filteredUser 
-            ? orders.filter(order => order.user_id === filteredUser.id)
-            : orders;
-
-        const filteredOrders = ordersToDisplay.filter(order =>
+        const filteredOrders = orders.filter(order =>
             order.id.toString().slice(-6).includes(searchQuery) ||
             (order.profiles?.name || '').toLowerCase().includes(searchQuery)
         );
-        const statusColors: { [key: string]: string } = {
-            'Pending': 'bg-gray-100 border-gray-200 text-gray-800',
-            'Processing': 'bg-yellow-100 border-yellow-200 text-yellow-800',
-            'Shipped': 'bg-blue-100 border-blue-200 text-blue-800',
-            'Delivered': 'bg-green-100 border-green-200 text-green-800',
-            'Cancelled': 'bg-red-100 border-red-200 text-red-800',
-        };
-
         return (
           <div>
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
@@ -563,17 +453,6 @@ const AdminPage: React.FC = () => {
                     className="w-full md:w-64 p-2 border border-gray-300 rounded-md shadow-sm"
                 />
             </div>
-
-            {filteredUser && (
-                <div className="mb-4 bg-indigo-100 p-3 rounded-md flex justify-between items-center">
-                    <p className="text-indigo-800 font-semibold">
-                        Showing orders for: {filteredUser.name}
-                    </p>
-                    <button onClick={() => setFilteredUser(null)} className="text-sm font-bold text-indigo-600 hover:text-indigo-900">
-                        Clear Filter
-                    </button>
-                </div>
-            )}
             <div className="overflow-x-auto">
                 <table className="min-w-full bg-white">
                     <thead className="bg-gray-200">
@@ -600,14 +479,15 @@ const AdminPage: React.FC = () => {
                                     <td className="py-3 px-4">
                                         <select
                                             value={order.status}
-                                            onChange={(e) => updateOrderStatus(order.id, e.target.value)}
-                                            className={`p-1 border rounded-md text-sm ${statusColors[order.status] || 'bg-gray-100'}`}
+                                            onChange={(e) => updateOrderStatus(order.id, e.target.value as Order['status'])}
+                                            className={`p-1 border rounded-md text-sm ${
+                                                order.status === 'Delivered' ? 'bg-green-100 border-green-200' : 
+                                                order.status === 'Shipped' ? 'bg-blue-100 border-blue-200' : 'bg-yellow-100 border-yellow-200'
+                                            }`}
                                         >
-                                            <option value="Pending">Pending</option>
                                             <option value="Processing">Processing</option>
                                             <option value="Shipped">Shipped</option>
                                             <option value="Delivered">Delivered</option>
-                                            <option value="Cancelled">Cancelled</option>
                                         </select>
                                     </td>
                                     <td className="py-3 px-4">
@@ -628,65 +508,32 @@ const AdminPage: React.FC = () => {
           </div>
         );
     case AdminTab.ANALYTICS:
-        const CurrencyIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>);
-        const OrdersIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>);
-        const UsersIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M15 21a6 6 0 00-9-5.197m0 0A5.965 5.965 0 0112 13a5.965 5.965 0 013 1.197" /></svg>);
-
-        if (orders.length === 0) {
-            return (
-                <div className="text-center py-16">
-                    <h3 className="text-2xl font-semibold text-gray-700">No Analytics Data Yet</h3>
-                    <p className="text-gray-500 mt-2">Check back after you've made some sales.</p>
-                </div>
-            )
-        }
+        const pageViewData = [
+            { label: 'Home', value: 1200 },
+            { label: 'Shop', value: 950 },
+            { label: 'Laptop', value: 800 },
+            { label: 'Contact', value: 450 },
+            { label: 'About', value: 300 },
+        ];
         return (
             <div>
                 <h3 className="text-2xl font-semibold mb-6">Store Analytics</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    <AnalyticsStatCard title="Total Revenue" value={`₦${analyticsData.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<CurrencyIcon />} />
-                    <AnalyticsStatCard title="Total Orders" value={analyticsData.totalOrders.toLocaleString()} icon={<OrdersIcon />} />
-                    <AnalyticsStatCard title="Total Customers" value={analyticsData.totalCustomers.toLocaleString()} icon={<UsersIcon />} />
-                    <AnalyticsStatCard title="Avg. Order Value" value={`₦${analyticsData.avgOrderValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<CurrencyIcon />} />
-                </div>
-                
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                    <div className="bg-surface p-6 rounded-lg shadow-sm">
-                        <h4 className="text-lg font-bold mb-4">Sales Over Last 7 Days (₦)</h4>
-                        <SimpleBarChart data={salesLast7DaysData} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="bg-gray-50 p-6 rounded-lg">
+                        <h4 className="text-lg font-bold mb-4">Most Viewed Pages</h4>
+                        <SimpleBarChart data={pageViewData} />
                     </div>
-                    <div className="bg-surface p-6 rounded-lg shadow-sm">
-                        <h4 className="text-lg font-bold mb-4">Top 5 Selling Products (Units)</h4>
-                        <SimpleBarChart data={topSellingProductsData} />
+                    <div className="bg-gray-50 p-6 rounded-lg">
+                         <h4 className="text-lg font-bold mb-4">Top Selling Products</h4>
+                         <ul className="space-y-3">
+                             {products.slice(0,5).map((p, i) => (
+                                 <li key={p.id} className="flex justify-between">
+                                     <span>{i+1}. {p.name}</span>
+                                     <span className="font-semibold">{15 - i} sales</span>
+                                 </li>
+                             ))}
+                         </ul>
                     </div>
-                </div>
-                
-                <div>
-                    <h4 className="text-lg font-bold mb-4">Low Stock Alerts (under 10 units)</h4>
-                    {lowStockProducts.length > 0 ? (
-                        <div className="overflow-x-auto bg-surface rounded-lg shadow-sm">
-                            <table className="min-w-full bg-white">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600">Product Name</th>
-                                        <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600">Stock Remaining</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {lowStockProducts.map(product => (
-                                        <tr key={product.id} className="border-t">
-                                            <td className="py-3 px-4">{product.name}</td>
-                                            <td className="py-3 px-4"><span className="font-bold text-accent">{product.stock}</span></td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    ) : (
-                        <div className="bg-surface p-6 rounded-lg shadow-sm text-center text-gray-500">
-                            No products with low stock. Great job!
-                        </div>
-                    )}
                 </div>
             </div>
         )
@@ -701,12 +548,8 @@ const AdminPage: React.FC = () => {
                         <h4 className="text-lg font-bold mb-4">General & Homepage</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label htmlFor="siteName" className="block text-sm font-medium text-gray-700">Site Name</label>
+                                <label htmlFor="siteName" className="block text-sm font-medium text-gray-700">App Name</label>
                                 <input type="text" id="siteName" value={siteContent.site_name || ''} onChange={(e) => handleSiteContentChange('site_name', e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" />
-                            </div>
-                            <div>
-                                <label htmlFor="senderEmail" className="block text-sm font-medium text-gray-700">Sender Email</label>
-                                <input type="email" id="senderEmail" value={siteContent.sender_email || ''} onChange={(e) => handleSiteContentChange('sender_email', e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" placeholder="notifications@example.com" />
                             </div>
                             <div>
                                 <label htmlFor="heroTitle" className="block text-sm font-medium text-gray-700">Hero Title</label>
@@ -718,7 +561,182 @@ const AdminPage: React.FC = () => {
                             </div>
                         </div>
                     </div>
-                    {/* ... other sections ... */}
+
+                    {/* Sales Banner */}
+                    <div className="p-6 border rounded-lg">
+                        <h4 className="text-lg font-bold mb-4">Sales Countdown Banner</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label htmlFor="bannerIsActive" className="flex items-center space-x-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        id="bannerIsActive"
+                                        checked={siteContent.sales_banner_is_active || false}
+                                        onChange={(e) => handleSiteContentChange('sales_banner_is_active', e.target.checked)}
+                                        className="h-5 w-5 rounded text-primary focus:ring-primary"
+                                    />
+                                    <span className="text-sm font-medium text-gray-700">Display Banner</span>
+                                </label>
+                            </div>
+                            <div /> 
+                            <div>
+                                <label htmlFor="bannerTitle" className="block text-sm font-medium text-gray-700">Title</label>
+                                <input
+                                    type="text"
+                                    id="bannerTitle"
+                                    value={siteContent.sales_banner_title || ''}
+                                    onChange={(e) => handleSiteContentChange('sales_banner_title', e.target.value)}
+                                    className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="bannerSubtitle" className="block text-sm font-medium text-gray-700">Subtitle</label>
+                                <input
+                                    type="text"
+                                    id="bannerSubtitle"
+                                    value={siteContent.sales_banner_subtitle || ''}
+                                    onChange={(e) => handleSiteContentChange('sales_banner_subtitle', e.target.value)}
+                                    className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label htmlFor="bannerEndDate" className="block text-sm font-medium text-gray-700">Sale End Date & Time</label>
+                                <input
+                                    type="datetime-local"
+                                    id="bannerEndDate"
+                                    value={(siteContent.sales_banner_end_date || '').substring(0, 16)}
+                                    onChange={(e) => {
+                                        const date = new Date(e.target.value);
+                                        handleSiteContentChange('sales_banner_end_date', date.toISOString());
+                                    }}
+                                    className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Contact Page */}
+                    <div className="p-6 border rounded-lg">
+                        <h4 className="text-lg font-bold mb-4">Contact Page Information</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label htmlFor="contactAddress" className="block text-sm font-medium text-gray-700">Address</label>
+                                <input type="text" id="contactAddress" value={siteContent.contact_address || ''} onChange={(e) => handleSiteContentChange('contact_address', e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" />
+                            </div>
+                            <div>
+                                <label htmlFor="contactEmail" className="block text-sm font-medium text-gray-700">Email</label>
+                                <input type="email" id="contactEmail" value={siteContent.contact_email || ''} onChange={(e) => handleSiteContentChange('contact_email', e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" />
+                            </div>
+                             <div>
+                                <label htmlFor="contactPhone" className="block text-sm font-medium text-gray-700">Phone</label>
+                                <input type="tel" id="contactPhone" value={siteContent.contact_phone || ''} onChange={(e) => handleSiteContentChange('contact_phone', e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Social Media Handles */}
+                    <div className="p-6 border rounded-lg">
+                        <h4 className="text-lg font-bold mb-4">Social Media Handles</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label htmlFor="instagramHandle" className="block text-sm font-medium text-gray-700">Instagram Handle (without @)</label>
+                                <input 
+                                    type="text" 
+                                    id="instagramHandle" 
+                                    value={siteContent.social_instagram || ''} 
+                                    onChange={(e) => handleSiteContentChange('social_instagram', e.target.value)} 
+                                    className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                    placeholder="EShopPro"
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="tiktokHandle" className="block text-sm font-medium text-gray-700">TikTok Handle (with @)</label>
+                                <input 
+                                    type="text" 
+                                    id="tiktokHandle" 
+                                    value={siteContent.social_tiktok || ''} 
+                                    onChange={(e) => handleSiteContentChange('social_tiktok', e.target.value)} 
+                                    className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm"
+                                    placeholder="@eshopro.official"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* About Page */}
+                    <div className="p-6 border rounded-lg">
+                        <h4 className="text-lg font-bold mb-4">About Us Page</h4>
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label htmlFor="aboutTitle" className="block text-sm font-medium text-gray-700">Page Title</label>
+                                    <input type="text" id="aboutTitle" value={siteContent.about_title || ''} onChange={(e) => handleSiteContentChange('about_title', e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label htmlFor="aboutSubtitle" className="block text-sm font-medium text-gray-700">Page Subtitle</label>
+                                    <textarea id="aboutSubtitle" value={siteContent.about_subtitle || ''} onChange={(e) => handleSiteContentChange('about_subtitle', e.target.value)} rows={2} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm"></textarea>
+                                </div>
+                                <div>
+                                    <label htmlFor="storyTitle" className="block text-sm font-medium text-gray-700">Story Title</label>
+                                    <input type="text" id="storyTitle" value={siteContent.about_story_title || ''} onChange={(e) => handleSiteContentChange('about_story_title', e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" />
+                                </div>
+                                 <div>
+                                    <label htmlFor="storyImageUrl" className="block text-sm font-medium text-gray-700">Story Image</label>
+                                    <input type="file" id="storyImageUrl" accept="image/*" onChange={handleStoryImageChange} className="mt-1 block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-primary hover:file:bg-violet-100" />
+                                    {siteContent.about_story_image_url && <img src={siteContent.about_story_image_url} alt="Story preview" className="mt-2 h-32 w-auto rounded-md shadow-sm" loading="lazy" decoding="async" />}
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label htmlFor="storyContent" className="block text-sm font-medium text-gray-700">Story Content</label>
+                                    <textarea id="storyContent" value={siteContent.about_story_content || ''} onChange={(e) => handleSiteContentChange('about_story_content', e.target.value)} rows={4} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm"></textarea>
+                                </div>
+                            </div>
+
+                            {/* Team Management */}
+                            <div>
+                                <div className="flex justify-between items-center mt-4 pt-4 border-t">
+                                    <h5 className="text-md font-bold">Meet the Team</h5>
+                                    <Button variant="secondary" onClick={() => { setEditingTeamMember({}); setIsTeamMemberModalOpen(true); }}>Add Member</Button>
+                                </div>
+                                <div className="mt-4 space-y-2">
+                                    {teamMembers.map(member => (
+                                        <div key={member.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
+                                            <div className="flex items-center gap-3">
+                                                <img src={member.image_url || ''} alt={member.name || ''} className="w-10 h-10 rounded-full object-cover" loading="lazy" decoding="async"/>
+                                                <div>
+                                                    <p className="font-semibold">{member.name}</p>
+                                                    <p className="text-sm text-gray-500">{member.title}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <Button variant="secondary" onClick={() => { setEditingTeamMember(member); setIsTeamMemberModalOpen(true); }}>Edit</Button>
+                                                <Button variant="danger" onClick={() => handleDeleteTeamMember(member.id)}>Delete</Button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Theme Colors */}
+                    <div className="p-6 border rounded-lg">
+                        <h4 className="text-lg font-bold mb-4">Theme Colors</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                                <label htmlFor="primaryColor" className="block text-sm font-medium text-gray-700">Primary</label>
+                                <input type="color" id="primaryColor" value={themeColors.primary} onChange={(e) => setThemeColors(p => ({...p, primary: e.target.value}))} className="mt-1 h-10 w-full block border border-gray-300 cursor-pointer rounded-md" />
+                            </div>
+                             <div>
+                                <label htmlFor="secondaryColor" className="block text-sm font-medium text-gray-700">Secondary</label>
+                                <input type="color" id="secondaryColor" value={themeColors.secondary} onChange={(e) => setThemeColors(p => ({...p, secondary: e.target.value}))} className="mt-1 h-10 w-full block border border-gray-300 cursor-pointer rounded-md" />
+                            </div>
+                             <div>
+                                <label htmlFor="accentColor" className="block text-sm font-medium text-gray-700">Accent</label>
+                                <input type="color" id="accentColor" value={themeColors.accent} onChange={(e) => setThemeColors(p => ({...p, accent: e.target.value}))} className="mt-1 h-10 w-full block border border-gray-300 cursor-pointer rounded-md" />
+                            </div>
+                        </div>
+                    </div>
+
                     <Button onClick={handleContentSave} className="w-full text-lg py-3">Save All Changes</Button>
                 </div>
             </div>
@@ -790,16 +808,6 @@ const AdminPage: React.FC = () => {
       <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)}>
         <h2 className="text-2xl font-bold mb-4">Edit Product</h2>
         <AdminProductForm onSubmit={handleUpdateProduct} initialData={editingProduct} />
-      </Modal>
-       <Modal isOpen={!!deletingProduct} onClose={() => setDeletingProduct(null)}>
-        <h2 className="text-2xl font-bold mb-4">Confirm Deletion</h2>
-        <p className="text-gray-600 mb-6">
-            Are you sure you want to delete the product "{deletingProduct?.name}"? This action cannot be undone.
-        </p>
-        <div className="flex justify-end gap-4">
-            <Button variant="secondary" onClick={() => setDeletingProduct(null)}>Cancel</Button>
-            <Button variant="danger" onClick={confirmDeleteProduct}>Delete</Button>
-        </div>
       </Modal>
        <Modal isOpen={isEditCategoryModalOpen} onClose={() => setIsEditCategoryModalOpen(false)}>
         <h2 className="text-2xl font-bold mb-4">Edit Category Name</h2>
@@ -919,7 +927,7 @@ const AdminPage: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y">
-                            {viewingOrder.order_items.map(item => (
+                            {viewingOrder.items.map(item => (
                                 <tr key={item.id}>
                                     <td className="py-2 px-3 flex items-center gap-3">
                                         <img src={item.products?.image_url || ''} alt={item.products?.name} className="w-10 h-10 object-cover rounded" loading="lazy" decoding="async" />
@@ -929,10 +937,9 @@ const AdminPage: React.FC = () => {
                                     <td className="py-2 px-3">
                                         <select
                                             value={item.status}
-                                            onChange={(e) => handleOrderItemStatusChange(viewingOrder.id, item.id, e.target.value)}
+                                            onChange={(e) => handleOrderItemStatusChange(viewingOrder.id, item.id, e.target.value as OrderItem['status'])}
                                             className="p-1 border rounded-md text-sm w-full"
                                         >
-                                            <option value="Pending">Pending</option>
                                             <option value="Processing">Processing</option>
                                             <option value="Shipped">Shipped</option>
                                             <option value="Delivered">Delivered</option>
@@ -950,22 +957,16 @@ const AdminPage: React.FC = () => {
             </div>
         )}
     </Modal>
-    <Modal isOpen={!!pendingUpload} onClose={() => setPendingUpload(null)}>
-        {pendingUpload && (
-            <div className="text-center">
-            <h3 className="text-2xl font-bold mb-4">Upload this Image?</h3>
-            <img src={pendingUpload.imageSrc} alt="Preview" className="max-w-full max-h-80 mx-auto rounded-md mb-6" />
-            <div className="flex justify-center gap-4">
-                <Button variant="secondary" onClick={() => setPendingUpload(null)}>
-                Cancel
-                </Button>
-                <Button onClick={pendingUpload.onConfirm}>
-                Upload
-                </Button>
-            </div>
-            </div>
-        )}
-    </Modal>
+    <ImageCropModal
+        isOpen={!!imageToCrop}
+        onClose={() => {
+            setImageToCrop(null);
+            setCropConfig(null);
+        }}
+        imageSrc={imageToCrop}
+        onCropComplete={handleCropComplete}
+        aspectRatio={cropConfig?.aspectRatio}
+    />
     </div>
   );
 };

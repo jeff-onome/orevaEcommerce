@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
@@ -24,7 +25,11 @@ const OrderHistoryPage: React.FC = () => {
 
   if (userOrders.length === 0) {
     return (
-      <div className="text-center py-20 bg-surface rounded-lg shadow-md animate-fade-in">
+      <div className="flex flex-col items-center justify-center text-center py-20 bg-surface rounded-lg shadow-md animate-fade-in min-h-[60vh]">
+        {/* UX Improvement: Add an icon to the empty state */}
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24 text-gray-300 mb-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4M4 7l8 5 8-5m-8 5v5" />
+        </svg>
         <h2 className="text-3xl font-bold mb-4">No Orders Yet</h2>
         <p className="text-gray-600 mb-8">You haven't placed any orders with us. Let's change that!</p>
         <Link to="/shop">
@@ -38,13 +43,11 @@ const OrderHistoryPage: React.FC = () => {
     <div className="bg-surface p-8 rounded-lg shadow-xl animate-fade-in">
       <div className="flex justify-between items-center mb-8 border-b pb-4">
         <h1 className="text-3xl font-bold">My Orders</h1>
-        <Link to="/profile">
-            <Button variant="secondary" className="text-sm py-1 px-3">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Back to Profile
-            </Button>
+        <Link to="/profile" className="flex items-center text-sm text-gray-600 hover:text-primary font-semibold transition-colors duration-200">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Profile
         </Link>
       </div>
       <div className="overflow-x-auto">

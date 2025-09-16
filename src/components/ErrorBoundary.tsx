@@ -1,18 +1,20 @@
-import React, { Component, ErrorInfo } from 'react';
+
+import React from 'react';
 import { Link } from 'react-router-dom';
 import Button from './Button';
 
-type Props = React.PropsWithChildren<{}>;
+interface Props {
+  children: React.ReactNode;
+}
 
 interface State {
   hasError: boolean;
   error?: Error;
 }
 
-class ErrorBoundary extends Component<Props, State> {
-  // FIX: The errors "Property 'state' does not exist" and "Property 'props' does not exist" suggest an issue with 'this' context or class property initialization.
-  // Using a class field to initialize state is a modern and robust approach that avoids potential constructor-related issues.
-  state: State = {
+// FIX: To function correctly as an Error Boundary, this class must extend React.Component to have access to `this.props`.
+class ErrorBoundary extends React.Component<Props, State> {
+  public state: State = {
     hasError: false,
     error: undefined,
   };
@@ -22,15 +24,13 @@ class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     // You can log the error to an error reporting service
     console.error("Uncaught error:", error, errorInfo);
   }
 
   render() {
-    const { hasError, error } = this.state;
-
-    if (hasError) {
+    if (this.state.hasError) {
       // You can render any custom fallback UI
       return (
         <div className="text-center py-20 bg-surface rounded-lg shadow-md animate-fade-in flex flex-col items-center justify-center min-h-[50vh]">
@@ -43,13 +43,13 @@ class ErrorBoundary extends Component<Props, State> {
             </p>
 
             {/* Optional: Show error details in development */}
-            {process.env.NODE_ENV === 'development' && error && (
+            {process.env.NODE_ENV === 'development' && this.state.error && (
                 <details className="bg-red-50 p-4 rounded-md text-left mb-6 w-full max-w-2xl">
                     <summary className="font-semibold cursor-pointer text-red-800">Error Details</summary>
-                    <pre className="text-sm mt-2 whitespace-pre-wrap break-words">
-                        {error.toString()}
+                    <pre className="text-red-700 text-sm mt-2 whitespace-pre-wrap break-words">
+                        {this.state.error.toString()}
                         <br />
-                        {error.stack}
+                        {this.state.error.stack}
                     </pre>
                 </details>
             )}

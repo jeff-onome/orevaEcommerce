@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { Product } from '../types';
 import Button from './Button';
 import { useAppContext } from '../context/AppContext';
-import Modal from './Modal';
+import ImageCropModal from './ImageCropModal';
 
 type ProductFormData = Omit<Product, 'id' | 'created_at'> & { id?: number };
 
@@ -23,7 +24,7 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ onSubmit, initialDa
     stock: 0,
   });
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageToUpload, setImageToUpload] = useState<string | null>(null);
+  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialData) {
@@ -59,18 +60,16 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ onSubmit, initialDa
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setImageToUpload(reader.result as string);
+        setImageToCrop(reader.result as string);
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleUploadConfirm = () => {
-    if (imageToUpload) {
-      setImagePreview(imageToUpload);
-      setProduct(prev => ({ ...prev, image_url: imageToUpload }));
-      setImageToUpload(null);
-    }
+  const handleCropComplete = (croppedDataUrl: string) => {
+    setImagePreview(croppedDataUrl);
+    setProduct(prev => ({ ...prev, image_url: croppedDataUrl }));
+    setImageToCrop(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -83,7 +82,7 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ onSubmit, initialDa
     
     const finalProduct = {
       ...product,
-      image_url: product.image_url || null,
+      image_url: product.image_url || `https://picsum.photos/seed/${product.name}/600/600`,
     };
     onSubmit(finalProduct);
   };
@@ -125,20 +124,13 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ onSubmit, initialDa
         
         <Button type="submit">Save Product</Button>
       </form>
-      <Modal isOpen={!!imageToUpload} onClose={() => setImageToUpload(null)}>
-        <div className="text-center">
-          <h3 className="text-2xl font-bold mb-4">Upload this Image?</h3>
-          <img src={imageToUpload!} alt="Preview" className="max-w-full max-h-80 mx-auto rounded-md mb-6" />
-          <div className="flex justify-center gap-4">
-            <Button variant="secondary" onClick={() => setImageToUpload(null)}>
-              Cancel
-            </Button>
-            <Button onClick={handleUploadConfirm}>
-              Upload
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      <ImageCropModal
+        isOpen={!!imageToCrop}
+        onClose={() => setImageToCrop(null)}
+        imageSrc={imageToCrop}
+        onCropComplete={handleCropComplete}
+        aspectRatio={1}
+      />
     </>
   );
 };

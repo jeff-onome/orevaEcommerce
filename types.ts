@@ -107,11 +107,6 @@ export type Database = {
         Row: {
           created_at: string | null
           id: number
-          payment_method: string | null
-          shipping_address_city: string | null
-          shipping_address_country: string | null
-          shipping_address_line1: string | null
-          shipping_address_zip: string | null
           status: string
           total: number
           user_id: string
@@ -119,11 +114,6 @@ export type Database = {
         Insert: {
           created_at?: string | null
           id?: number
-          payment_method?: string | null
-          shipping_address_city?: string | null
-          shipping_address_country?: string | null
-          shipping_address_line1?: string | null
-          shipping_address_zip?: string | null
           status?: string
           total: number
           user_id: string
@@ -131,11 +121,6 @@ export type Database = {
         Update: {
           created_at?: string | null
           id?: number
-          payment_method?: string | null
-          shipping_address_city?: string | null
-          shipping_address_country?: string | null
-          shipping_address_line1?: string | null
-          shipping_address_zip?: string | null
           status?: string
           total?: number
           user_id?: string
@@ -307,8 +292,6 @@ export type Database = {
           contact_address: string | null
           contact_email: string | null
           contact_phone: string | null
-          email_verification_body: string | null
-          email_verification_title: string | null
           hero_subtitle: string | null
           hero_title: string | null
           id: number
@@ -316,13 +299,9 @@ export type Database = {
           sales_banner_is_active: boolean | null
           sales_banner_subtitle: string | null
           sales_banner_title: string | null
-          sender_email: string | null
           site_name: string | null
           social_instagram: string | null
           social_tiktok: string | null
-          social_facebook: string | null
-          social_twitter: string | null
-          social_whatsapp: string | null
           theme_accent: string | null
           theme_primary: string | null
           theme_secondary: string | null
@@ -337,8 +316,6 @@ export type Database = {
           contact_address?: string | null
           contact_email?: string | null
           contact_phone?: string | null
-          email_verification_body?: string | null
-          email_verification_title?: string | null
           hero_subtitle?: string | null
           hero_title?: string | null
           id?: number
@@ -346,13 +323,9 @@ export type Database = {
           sales_banner_is_active?: boolean | null
           sales_banner_subtitle?: string | null
           sales_banner_title?: string | null
-          sender_email?: string | null
           site_name?: string | null
           social_instagram?: string | null
           social_tiktok?: string | null
-          social_facebook?: string | null
-          social_twitter?: string | null
-          social_whatsapp?: string | null
           theme_accent?: string | null
           theme_primary?: string | null
           theme_secondary?: string | null
@@ -367,8 +340,6 @@ export type Database = {
           contact_address?: string | null
           contact_email?: string | null
           contact_phone?: string | null
-          email_verification_body?: string | null
-          email_verification_title?: string | null
           hero_subtitle?: string | null
           hero_title?: string | null
           id?: number
@@ -376,13 +347,9 @@ export type Database = {
           sales_banner_is_active?: boolean | null
           sales_banner_subtitle?: string | null
           sales_banner_title?: string | null
-          sender_email?: string | null
           site_name?: string | null
           social_instagram?: string | null
           social_tiktok?: string | null
-          social_facebook?: string | null
-          social_twitter?: string | null
-          social_whatsapp?: string | null
           theme_accent?: string | null
           theme_primary?: string | null
           theme_secondary?: string | null
@@ -584,7 +551,7 @@ export type OrderItem = Tables<'order_items'> & { products: Product | null };
 
 // Order includes related items and user info
 export interface Order extends Tables<'orders'> {
-    order_items: OrderItem[];
+    items: OrderItem[];
     profiles: Profile | null;
 }
 

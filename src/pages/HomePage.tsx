@@ -40,11 +40,14 @@ const HomePage: React.FC = () => {
   const sliderProducts = products.slice(0, 5);
   const activePromotions = promotions.filter(p => p.is_active);
 
-  // For category highlights - Now dynamic from the admin panel
-  const highlightedCategories = categories
-    .filter(c => c.is_highlighted)
-    .sort((a, b) => (a.display_order ?? 99) - (b.display_order ?? 99))
-    .slice(0, 4);
+  // For category highlights
+  const highlightedCategories = ['Electronics', 'Apparel', 'Home Goods', 'Fitness'];
+  const categoryImages: { [key: string]: string } = {
+    'Electronics': 'https://picsum.photos/seed/cat_electronics/600/400',
+    'Apparel': 'https://picsum.photos/seed/cat_apparel/600/400',
+    'Home Goods': 'https://picsum.photos/seed/cat_home/600/400',
+    'Fitness': 'https://picsum.photos/seed/cat_fitness/600/400',
+  };
 
   return (
     <>
@@ -60,31 +63,34 @@ const HomePage: React.FC = () => {
         </section>
 
         {/* Featured Categories Section */}
-        {highlightedCategories.length > 0 && (
-          <section>
-            <h2 className="text-2xl md:text-3xl font-bold text-center mb-8">Shop by Category</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {highlightedCategories.map(category => (
-                <Link
-                  key={category.id}
-                  to={`/shop?category=${encodeURIComponent(category.name)}`}
-                  className="block group relative rounded-lg overflow-hidden shadow-lg hover:shadow-2xl transition-shadow duration-300"
-                >
-                  <img
-                    src={category.image_url || `https://picsum.photos/seed/${category.name}/600/400`}
-                    alt={category.name}
-                    className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-300"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-                    <h3 className="text-white text-2xl font-bold">{category.name}</h3>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
+        <section>
+          <h2 className="text-2xl md:text-3xl font-bold text-center mb-8">Shop by Category</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {highlightedCategories.map(category => {
+              if (categories.some(c => c.name === category)) {
+                return (
+                  <Link
+                    key={category}
+                    to={`/shop?category=${encodeURIComponent(category)}`}
+                    className="block group relative rounded-lg overflow-hidden shadow-lg hover:shadow-2xl transition-shadow duration-300"
+                  >
+                    <img
+                      src={categoryImages[category]}
+                      alt={category}
+                      className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-300"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                    <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+                      <h3 className="text-white text-2xl font-bold">{category}</h3>
+                    </div>
+                  </Link>
+                )
+              }
+              return null;
+            })}
+          </div>
+        </section>
 
         <section>
           <h2 className="text-2xl md:text-3xl font-bold text-center mb-8">Featured Products</h2>

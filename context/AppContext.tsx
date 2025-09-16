@@ -1,7 +1,6 @@
 
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Session, User as AuthUser } from '@supabase/supabase-js';
+import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../supabaseClient';
 import { Product, CartItem, Profile, Order, Review, Promotion, Category, SiteContent, TeamMember, TablesInsert } from '../types';
 
@@ -19,7 +18,7 @@ interface AppState {
   
   // Auth & User
   session: Session | null;
-  user: AuthUser | null;
+  user: User | null;
   profile: Profile | null;
   
   // App Status
@@ -37,12 +36,7 @@ interface AppContextType extends AppState {
 
   toggleWishlist: (productId: number) => Promise<void>;
   
-  placeOrder: (
-    items: CartItem[], 
-    total: number, 
-    shippingDetails: { address: string; city: string; zip: string; country: string; }, 
-    paymentMethod: string
-  ) => Promise<Order | null>;
+  placeOrder: (items: CartItem[], total: number) => Promise<Order | null>;
   
   addReview: (reviewData: TablesInsert<'reviews'>) => Promise<void>;
 
@@ -51,7 +45,6 @@ interface AppContextType extends AppState {
   // Admin functions
   addProduct: (product: Omit<Product, 'id' | 'created_at'>) => Promise<Product | null>;
   updateProduct: (product: Product) => Promise<void>;
-  deleteProduct: (productId: number) => Promise<void>;
   addCategory: (name: string) => Promise<void>;
   updateCategory: (id: number, oldName: string, newName: string) => Promise<void>;
   deleteCategory: (id: number) => Promise<void>;
@@ -84,153 +77,139 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     error: null,
   });
 
-  // --- AUTH & PROFILE MANAGEMENT ---
-  useEffect(() => {
-    const getSession = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        setState(s => ({ ...s, session, user: session?.user ?? null }));
-        if (session?.user) {
-            await fetchProfile(session.user.id);
-        }
-        // Initial load is done after first session check
-        setState(s => ({ ...s, loading: false }));
-    };
-    
-    getSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setState(s => ({ ...s, session, user: session?.user ?? null }));
-      if (session?.user) {
-        await fetchProfile(session.user.id);
-      } else {
-        setState(s => ({ ...s, profile: null, cart: [], wishlist: [], orders: [], users: [] }));
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
   const fetchProfile = async (userId: string) => {
     const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
-    if (error) console.error("Error fetching profile:", error);
-    setState(s => ({ ...s, profile: profile || null }));
+    if (error) {
+      console.error("Error fetching profile:", error.message);
+      return null;
+    }
+    return profile;
   };
 
-  // --- DATA FETCHING ---
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      try {
+  const fetchUserData = async (user: User) => {
+    try {
         const [
-          productsRes,
-          categoriesRes,
-          promotionsRes,
-          siteContentRes,
-          teamMembersRes,
-          reviewsRes,
+            { data: cartData, error: cartError },
+            { data: wishlistData, error: wishlistError },
+            { data: ordersData, error: ordersError },
         ] = await Promise.all([
-          supabase.from('products').select('*').order('id'),
-          supabase.from('categories').select('*').order('name'),
-          supabase.from('promotions').select('*').order('id'),
-          supabase.from('site_content').select('*').eq('id', 1).maybeSingle(),
-          supabase.from('team_members').select('*'),
-          supabase.from('reviews').select('*'),
+            supabase.from('cart_items').select('*, products(*)').eq('user_id', user.id),
+            supabase.from('wishlist_items').select('product_id').eq('user_id', user.id),
+            supabase.from('orders').select('*, order_items(*, products(*)), profiles(*)').eq('user_id', user.id).order('created_at', { ascending: false }),
         ]);
 
-        // Centralized error checking to ensure all fetches succeed
-        const results = [
-          { name: 'products', ...productsRes },
-          { name: 'categories', ...categoriesRes },
-          { name: 'promotions', ...promotionsRes },
-          { name: 'siteContent', ...siteContentRes },
-          { name: 'teamMembers', ...teamMembersRes },
-          { name: 'reviews', ...reviewsRes },
-        ];
-
-        for (const res of results) {
-          if (res.error) {
-            // Throw a more informative error
-            throw new Error(`Failed to fetch ${res.name}: ${res.error.message}`);
-          }
+        if (cartError || wishlistError || ordersError) {
+            console.error(cartError || wishlistError || ordersError);
+            throw new Error("Failed to fetch user data.");
         }
         
-        const siteContentData = siteContentRes.data;
-        const teamMembers = teamMembersRes.data;
+        const cartItems: CartItem[] = (cartData || [])
+            .filter(item => item.products)
+            .map(item => ({ ...(item.products as Product), quantity: item.quantity }));
+
+        const wishlistItems: number[] = wishlistData?.map(item => item.product_id) || [];
         
-        const siteContentWithMembers: SiteContent | null = siteContentData ? {
-            ...(siteContentData as any),
-            team_members: teamMembers || [],
-        } : null;
-        
-        setState(s => ({ 
-            ...s, 
-            products: productsRes.data || [],
-            categories: categoriesRes.data || [],
-            promotions: promotionsRes.data || [],
-            reviews: reviewsRes.data || [],
-            siteContent: siteContentWithMembers,
-        }));
-      } catch (err: unknown) {
-        let error: Error;
-        if (err instanceof Error) {
-          // This will catch the custom error thrown from the try block
-          error = err;
-        } else if (typeof err === 'object' && err !== null && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
-          // This will catch Supabase errors or other error-like objects
-          error = new Error(`An error occurred: ${(err as { message: string }).message}`);
-        } else {
-          // Fallback for other types of errors (e.g., network errors)
-          error = new Error('An unexpected error occurred while fetching initial data.');
-        }
-        console.error("Error fetching initial data:", error);
-        setState(s => ({ ...s, error: error, loading: false }));
-      }
-    };
-    fetchInitialData();
-  }, []);
-
-  // Fetch user-specific data when logged in
-  useEffect(() => {
-    const fetchUserData = async () => {
-        if (state.user) {
-            const { data: cartData } = await supabase.from('cart_items').select('*, products(*)').eq('user_id', state.user!.id);
-            const { data: wishlistData } = await supabase.from('wishlist_items').select('product_id').eq('user_id', state.user!.id);
-            
-            // Admins see all orders, regular users see only their own.
-            let ordersQuery = supabase.from('orders').select('*, order_items(*, products(*)), profiles(*)');
-            if (!state.profile?.is_admin) {
-              ordersQuery = ordersQuery.eq('user_id', state.user.id);
-            }
-            const { data: ordersData } = await ordersQuery.order('created_at', { ascending: false });
-
-            // FIX: Filter out cart items where the associated product has been deleted to prevent crashes.
-            const cartItems: CartItem[] = (cartData || [])
-              .filter(item => item.products) // Ensure product exists
-              .map(item => ({
-                ...(item.products as Product),
-                quantity: item.quantity,
-              }));
-
-            const wishlistItems: number[] = wishlistData?.map(item => item.product_id) || [];
-
-            setState(s => ({ ...s, cart: cartItems, wishlist: wishlistItems, orders: (ordersData as any) || [] }));
-        }
-    };
-    
-    const fetchAdminData = async () => {
-        if (state.profile?.is_admin) {
-             const { data: usersData, error } = await supabase.from('profiles').select('*');
-             if(error) console.error("Error fetching users for admin:", error);
-             setState(s => ({...s, users: usersData || [] }));
-        }
+        setState(s => ({ ...s, cart: cartItems, wishlist: wishlistItems, orders: (ordersData as any) || [] }));
+    } catch (err) {
+        console.error("Error fetching user data:", err);
+        setState(s => ({...s, error: err as Error}));
     }
+  };
 
-    fetchUserData();
-    fetchAdminData();
-  }, [state.user, state.profile]);
+  const fetchAdminData = async () => {
+      const { data: usersData, error } = await supabase.from('profiles').select('*');
+      if(error) console.error("Error fetching users for admin:", error);
+      setState(s => ({...s, users: usersData || [] }));
+  };
+
+  useEffect(() => {
+    const bootstrapAndListen = async () => {
+      setState(s => ({ ...s, loading: true }));
+      try {
+          // 1. Fetch public data that everyone sees
+          const [
+              { data: products, error: pError },
+              { data: categories, error: cError },
+              { data: promotions, error: promoError },
+              { data: siteContentData, error: siteError },
+              { data: teamMembers, error: tError },
+              { data: reviews, error: rError }
+          ] = await Promise.all([
+              supabase.from('products').select('*').order('id'),
+              supabase.from('categories').select('*').order('name'),
+              supabase.from('promotions').select('*').order('id'),
+              supabase.from('site_content').select('*').eq('id', 1).maybeSingle(),
+              supabase.from('team_members').select('*'),
+              supabase.from('reviews').select('*'),
+          ]);
+
+          if (pError || cError || promoError || siteError || tError || rError) {
+              throw new Error("Failed to load site content.");
+          }
+
+          const siteContentWithMembers: SiteContent | null = siteContentData ? {
+              ...(siteContentData as any),
+              team_members: teamMembers || [],
+          } : null;
+
+          setState(s => ({ 
+              ...s, 
+              products: products || [],
+              categories: categories || [],
+              promotions: promotions || [],
+              reviews: reviews || [],
+              siteContent: siteContentWithMembers,
+          }));
+          
+          // 2. Check for active session using Supabase v2 API
+          const { data: { session } } = await supabase.auth.getSession();
+          setState(s => ({ ...s, session, user: session?.user ?? null }));
+
+          if (session?.user) {
+              const profile = await fetchProfile(session.user.id);
+              setState(s => ({ ...s, profile }));
+              if (profile) {
+                  await fetchUserData(session.user);
+                  if (profile.is_admin) {
+                      await fetchAdminData();
+                  }
+              }
+          }
+      } catch (err) {
+          console.error("Error during app bootstrap:", err);
+          setState(s => ({ ...s, error: err as Error }));
+      } finally {
+          setState(s => ({ ...s, loading: false }));
+      }
+
+      // 3. Set up auth listener for subsequent changes using Supabase v2 API
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+          setState(s => ({ ...s, session, user: session?.user ?? null }));
+          if (event === 'SIGNED_IN' && session?.user) {
+              const profile = await fetchProfile(session.user.id);
+              setState(s => ({ ...s, profile }));
+              if (profile) {
+                  await fetchUserData(session.user);
+                  if (profile.is_admin) {
+                      await fetchAdminData();
+                  }
+              }
+          } else if (event === 'SIGNED_OUT') {
+              setState(s => ({ ...s, profile: null, cart: [], wishlist: [], orders: [], users: [] }));
+          }
+      });
+      
+      return () => {
+          subscription?.unsubscribe();
+      };
+    };
+
+    bootstrapAndListen();
+  }, []);
 
 
   // --- CONTEXT FUNCTIONS ---
@@ -244,8 +223,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     ).select('*, products(*)').single();
 
     if (error) { console.error(error); return; }
-    // FIX: Add a check to ensure the product data exists before creating the cart item.
-    if (!data?.products) return; 
+    if (!data?.products) return;
 
     const updatedItem: CartItem = { ...(data.products as Product), quantity: data.quantity };
     setState(s => ({ ...s, cart: s.cart.find(i => i.id === updatedItem.id) ? s.cart.map(i => i.id === updatedItem.id ? updatedItem : i) : [...s.cart, updatedItem] }));
@@ -267,7 +245,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
      const { data, error } = await supabase.from('cart_items').update({ quantity }).match({ user_id: state.user.id, product_id: productId }).select('*, products(*)').single();
      if (error) { console.error(error); return; }
 
-     // FIX: Add a check to ensure product data exists before updating the cart.
      if (!data?.products) return;
 
      const updatedItem: CartItem = { ...(data.products as Product), quantity: data.quantity };
@@ -296,26 +273,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
   
-  const placeOrder = async (
-    items: CartItem[], 
-    total: number, 
-    shippingDetails: { address: string; city: string; zip: string; country: string; },
-    paymentMethod: string
-  ) => {
+  const placeOrder = async (items: CartItem[], total: number) => {
     if (!state.user) return null;
     
-    // 1. Create the order
+    // Defensive check for invalid items
+    const validItems = items.filter(Boolean);
+    if (validItems.length !== items.length) {
+        console.error("Attempted to place order with invalid items.");
+        return null;
+    }
+    
     const { data: orderData, error: orderError } = await supabase.from('orders')
-      .insert({ 
-        user_id: state.user.id, 
-        total, 
-        status: 'Pending',
-        payment_method: paymentMethod,
-        shipping_address_line1: shippingDetails.address,
-        shipping_address_city: shippingDetails.city,
-        shipping_address_zip: shippingDetails.zip,
-        shipping_address_country: shippingDetails.country,
-      })
+      .insert({ user_id: state.user.id, total, status: 'Processing' })
       .select()
       .single();
 
@@ -324,27 +293,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return null;
     }
 
-    // 2. Create the order items
-    const orderItems = items.map(item => ({
+    const orderItems = validItems.map(item => ({
       order_id: orderData.id,
       product_id: item.id,
       quantity: item.quantity,
       price_at_purchase: item.sale_price ?? item.price,
-      status: 'Pending'
+      status: 'Processing'
     }));
 
     const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
     
     if (itemsError) {
       console.error(itemsError);
-      // TODO: Handle potential rollback
       return null;
     }
 
-    // 3. Clear cart
     await clearCart();
 
-    // 4. Refetch orders and return new order
     const { data: newOrderData } = await supabase.from('orders').select('*, order_items(*, products(*)), profiles(*)').eq('id', orderData.id).single();
     if(newOrderData) setState(s => ({ ...s, orders: [newOrderData as any, ...s.orders] }));
     return newOrderData as any;
@@ -378,15 +343,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if(error) { console.error(error); return; }
       if(data) setState(s => ({...s, products: s.products.map(p => p.id === data.id ? data : p)}));
   };
-
-  const deleteProduct = async (productId: number) => {
-    const { error } = await supabase.from('products').delete().eq('id', productId);
-    if (error) {
-      console.error('Error deleting product:', error);
-      throw error;
-    }
-    setState(s => ({...s, products: s.products.filter(p => p.id !== productId)}));
-  };
   
   const addCategory = async (name: string) => {
     const { data, error } = await supabase.from('categories').insert({ name }).select().single();
@@ -395,8 +351,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updateCategory = async (id: number, oldName: string, newName: string) => {
-    // This is a complex operation. A database function (RPC) would be better in a real app.
-    // For now, we update the category table and then loop through products.
     const { error: catError } = await supabase.from('categories').update({ name: newName }).eq('id', id);
     if (catError) { console.error(catError); return; }
 
@@ -406,7 +360,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         await supabase.from('products').update({ categories: newCategories }).eq('id', p.id);
     }
     
-    // Refresh all data as a simple way to reflect changes
     const { data: products } = await supabase.from('products').select('*');
     const { data: categories } = await supabase.from('categories').select('*');
     setState(s => ({ ...s, products: products || [], categories: categories || [] }));
@@ -446,8 +399,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   
   const updateTeamMembers = async (members: TeamMember[]) => {
       if(!state.siteContent) return;
-      // Simple approach: delete all and re-insert
-      const { error: deleteError } = await supabase.from('team_members').delete().neq('id', 0); // delete all
+      const { error: deleteError } = await supabase.from('team_members').delete().neq('id', 0);
       if (deleteError) { console.error(deleteError); return; }
       
       const newMembers = members.map(({ id, ...rest }) => rest);
@@ -459,25 +411,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const updateOrderStatus = async (orderId: number, status: string) => {
     const { error } = await supabase.from('orders').update({ status }).eq('id', orderId);
-    if (error) {
-      console.error(error);
-      return;
-    }
+    if (error) { console.error(error); return; }
     setState(s => ({
       ...s,
       orders: s.orders.map(o => o.id === orderId ? { ...o, status } : o)
     }));
-
-    // Trigger email notification for shipping updates
-    try {
-      const { error: funcError } = await supabase.functions.invoke('send-shipping-update', {
-        body: { orderId, status },
-      });
-      if (funcError) throw funcError;
-    } catch (error) {
-      console.error('Failed to send shipping update email:', error);
-      // Non-critical error, so we just log it.
-    }
   };
 
   const updateOrderItemStatus = async (itemId: number, status: string) => {
@@ -487,7 +425,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ...s,
         orders: s.orders.map(o => ({
             ...o,
-            order_items: o.order_items.map(i => i.id === itemId ? { ...i, status } as any : i)
+            items: o.items.map(i => i.id === itemId ? { ...i, status } as any : i)
         }))
     }));
   };
@@ -504,7 +442,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     updateProfile,
     addProduct,
     updateProduct,
-    deleteProduct,
     addCategory,
     updateCategory,
     deleteCategory,

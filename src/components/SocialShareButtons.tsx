@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import { Product } from '../types';
 
@@ -34,7 +33,6 @@ const SocialShareButtons: React.FC<{ product: Product }> = ({ product }) => {
   const shareLinks = {
     facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(pageUrl)}`,
     twitter: `https://twitter.com/intent/tweet?url=${encodeURIComponent(pageUrl)}&text=${encodeURIComponent(shareText)}`,
-    // FIX: Add fallback for potentially null image_url to prevent encoding "null".
     pinterest: `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(pageUrl)}&media=${encodeURIComponent(product.image_url || '')}&description=${encodeURIComponent(shareText)}`,
     whatsapp: `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText + ' ' + pageUrl)}`,
   };

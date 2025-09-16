@@ -4,10 +4,12 @@ import { Product } from '../types';
 interface AdminProductRowProps {
   product: Product;
   onEdit: (product: Product) => void;
-  onDelete: (product: Product) => void;
 }
 
-const AdminProductRow: React.FC<AdminProductRowProps> = ({ product, onEdit, onDelete }) => {
+const AdminProductRow: React.FC<AdminProductRowProps> = ({ product, onEdit }) => {
+  // In a real app, this would trigger a deletion confirmation.
+  const handleDelete = () => alert(`Deleting ${product.name}`);
+
   return (
     <tr className="border-b hover:bg-gray-50">
       <td className="py-3 px-4 flex items-center space-x-3">
@@ -28,7 +30,7 @@ const AdminProductRow: React.FC<AdminProductRowProps> = ({ product, onEdit, onDe
       <td className="py-3 px-4">
         <div className="flex space-x-2">
             <button onClick={() => onEdit(product)} className="text-blue-600 hover:underline">Edit</button>
-            <button onClick={() => onDelete(product)} className="text-red-600 hover:underline">Delete</button>
+            <button onClick={handleDelete} className="text-red-600 hover:underline">Delete</button>
         </div>
       </td>
     </tr>

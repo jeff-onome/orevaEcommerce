@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { OrderItem } from '../../types';
@@ -31,9 +32,8 @@ const RatingsAndReviews: React.FC = () => {
 
     const userPurchasedItems = orders
         .filter(o => o.user_id === session?.user.id && o.status === 'Delivered')
-        .flatMap(o => o.order_items)
-        // FIX: Filter out items where the product might have been deleted
-        .filter(item => item.products)
+        .flatMap(o => o.items)
+        .filter(item => item.products) // Filter out items where the product might have been deleted
         .filter((item, index, self) => index === self.findIndex(t => t.product_id === item.product_id)); // Unique items by product_id
 
     const handleSubmitReview = (e: React.FormEvent) => {
@@ -75,7 +75,6 @@ const RatingsAndReviews: React.FC = () => {
                                     onClick={() => setSelectedItem(item)}
                                     className={`p-2 border rounded-md text-center hover:shadow-md ${selectedItem?.id === item.id ? 'ring-2 ring-primary' : ''}`}
                                 >
-                                    {/* FIX: Provide a fallback alt text for accessibility. */}
                                     <img src={item.products?.image_url || ''} alt={item.products?.name || 'Product Image'} className="w-full h-20 object-cover rounded-sm mb-2" loading="lazy" decoding="async" />
                                     <span className="text-xs font-medium">{item.products?.name}</span>
                                 </button>
@@ -85,19 +84,9 @@ const RatingsAndReviews: React.FC = () => {
                 </div>
 
                 {selectedItem && (
-                    <div className="bg-gray-50 p-6 rounded-lg animate-fade-in">
-                        <button
-                            onClick={() => setSelectedItem(null)}
-                            className="flex items-center text-sm text-gray-600 hover:text-primary font-semibold mb-4 transition-colors duration-200"
-                            aria-label="Back to product selection"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                            </svg>
-                            Choose a different product
-                        </button>
-                        <form onSubmit={handleSubmitReview} className="space-y-4">
-                            <h4 className="font-semibold">Your review for: {selectedItem.products?.name}</h4>
+                    <form onSubmit={handleSubmitReview} className="bg-gray-50 p-6 rounded-lg animate-fade-in">
+                        <h4 className="font-semibold mb-4">Your review for: {selectedItem.products?.name}</h4>
+                        <div className="space-y-4">
                             <div>
                                 <label className="block font-medium mb-2">Rating</label>
                                 <StarRating rating={rating} setRating={setRating} />
@@ -115,8 +104,8 @@ const RatingsAndReviews: React.FC = () => {
                                 ></textarea>
                             </div>
                             <Button type="submit">Submit Review</Button>
-                        </form>
-                    </div>
+                        </div>
+                    </form>
                 )}
 
                 <div>

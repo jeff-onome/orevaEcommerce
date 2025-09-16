@@ -3,7 +3,6 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Product } from '../types';
 import { useAppContext } from '../context/AppContext';
-import StarRating from './StarRating';
 
 interface ProductCardProps {
   product: Product;
@@ -51,31 +50,20 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 016.364 0L12 7.636l1.318-1.318a4.5 4.5 0 116.364 6.364L12 20.364l-7.682-7.682a4.5 4.5 0 010-6.364z" />
                 </svg>
             </button>
-            <div className="absolute -top-16 sm:-top-20 left-1/2 -translate-x-1/2 w-52 h-52">
-                {product.image_url ? (
-                  <img 
-                      className="w-full h-full object-cover rounded-lg shadow-lg group-hover:scale-105 transition-transform duration-300" 
-                      src={product.image_url} 
-                      alt={product.name} 
-                      loading="lazy"
-                      decoding="async"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gray-200 rounded-lg shadow-lg flex items-center justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                  </div>
-                )}
+            <div className="absolute -top-16 sm:-top-20 left-1/2 -translate-x-1/2 w-52">
+                <img 
+                    className="w-full h-full object-cover rounded-lg shadow-lg group-hover:scale-105 transition-transform duration-300 aspect-[4/3]" 
+                    src={product.image_url || ''} 
+                    alt={product.name} 
+                    loading="lazy"
+                    decoding="async"
+                />
             </div>
             
             <div className="flex-grow flex flex-col justify-between">
                 <div>
                     <p className="text-sm text-gray-500 mt-1">{product.categories?.join(', ')}</p>
                     <h3 className="text-lg font-semibold text-gray-800 truncate mt-2">{product.name}</h3>
-                    <div className="flex justify-center mt-2">
-                      <StarRating rating={product.avg_rating || 0} reviewCount={product.review_count || 0} />
-                    </div>
                 </div>
                 <div className="mt-4">
                     {isSale ? (

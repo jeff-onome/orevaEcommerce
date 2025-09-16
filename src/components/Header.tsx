@@ -76,12 +76,8 @@ const MobileMenu: React.FC<{onClose: () => void}> = ({onClose}) => {
     const navigate = useNavigate();
 
     const handleLogout = async () => {
-        const { error } = await supabase.auth.signOut();
-        if (error) {
-          console.error('Error signing out:', error);
-          alert('There was an issue signing out. Please try again.');
-        }
-        navigate('/login');
+        await supabase.auth.signOut();
+        navigate('/');
         onClose();
     };
 
@@ -134,12 +130,8 @@ const Header: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error('Error signing out:', error);
-      alert('There was an issue signing out. Please try again.');
-    }
-    navigate('/login');
+    await supabase.auth.signOut();
+    navigate('/');
   };
   
   const navLinkClass = ({ isActive }: { isActive: boolean }) => 

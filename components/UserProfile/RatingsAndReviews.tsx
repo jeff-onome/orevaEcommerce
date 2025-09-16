@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { OrderItem } from '../../types';
@@ -31,9 +32,8 @@ const RatingsAndReviews: React.FC = () => {
 
     const userPurchasedItems = orders
         .filter(o => o.user_id === session?.user.id && o.status === 'Delivered')
-        .flatMap(o => o.order_items)
-        // FIX: Filter out items where the product might have been deleted
-        .filter(item => item.products)
+        .flatMap(o => o.items)
+        .filter(item => item.products) // Filter out items where the product might have been deleted
         .filter((item, index, self) => index === self.findIndex(t => t.product_id === item.product_id)); // Unique items by product_id
 
     const handleSubmitReview = (e: React.FormEvent) => {
@@ -75,7 +75,6 @@ const RatingsAndReviews: React.FC = () => {
                                     onClick={() => setSelectedItem(item)}
                                     className={`p-2 border rounded-md text-center hover:shadow-md ${selectedItem?.id === item.id ? 'ring-2 ring-primary' : ''}`}
                                 >
-                                    {/* FIX: Provide a fallback alt text for accessibility. */}
                                     <img src={item.products?.image_url || ''} alt={item.products?.name || 'Product Image'} className="w-full h-20 object-cover rounded-sm mb-2" loading="lazy" decoding="async" />
                                     <span className="text-xs font-medium">{item.products?.name}</span>
                                 </button>

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
@@ -26,11 +27,18 @@ const CartPage: React.FC = () => {
     return (item.sale_price && item.sale_price < item.price) ? item.sale_price : item.price;
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + getItemPrice(item) * item.quantity, 0);
+  // FIX: Defensive check to prevent crashes from invalid cart data
+  const validCart = cart.filter(Boolean);
 
-  if (cart.length === 0) {
+  const subtotal = validCart.reduce((sum, item) => sum + getItemPrice(item) * item.quantity, 0);
+
+  if (validCart.length === 0) {
     return (
-      <div className="text-center py-20 bg-surface rounded-lg shadow-md animate-fade-in">
+      <div className="flex flex-col items-center justify-center text-center py-20 bg-surface rounded-lg shadow-md animate-fade-in min-h-[60vh]">
+        {/* UX Improvement: Add an icon to the empty state */}
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24 text-gray-300 mb-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
         <h2 className="text-3xl font-bold mb-4">Your Cart is Empty</h2>
         <p className="text-gray-600 mb-8">Looks like you haven't added anything to your cart yet.</p>
         <Link to="/shop">
@@ -45,19 +53,13 @@ const CartPage: React.FC = () => {
       <div className="bg-surface p-8 rounded-lg shadow-xl animate-fade-in">
         <h1 className="text-2xl sm:text-3xl font-bold mb-8 border-b pb-4">Your Shopping Cart</h1>
         <div className="space-y-6">
-          {cart.map(item => {
+          {validCart.map(item => {
             const displayPrice = getItemPrice(item);
             const isSale = item.sale_price && item.sale_price < item.price;
             return (
               <div key={item.id} className="flex flex-col sm:flex-row w-full items-start sm:items-center justify-between animate-slide-in-up py-4 border-b last:border-0">
                 <div className="flex items-center space-x-4 mb-4 sm:mb-0">
-                  {item.image_url ? (
-                    <img src={item.image_url} alt={item.name} className="w-20 h-20 object-cover rounded-md" loading="lazy" decoding="async" />
-                  ) : (
-                    <div className="w-20 h-20 bg-gray-200 rounded-md flex items-center justify-center text-gray-400 flex-shrink-0">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                    </div>
-                  )}
+                  <img src={item.image_url!} alt={item.name} className="w-20 h-20 object-cover rounded-md" loading="lazy" decoding="async" />
                   <div>
                     <h3 className="font-semibold text-lg">{item.name}</h3>
                     <div className="flex items-baseline space-x-2">

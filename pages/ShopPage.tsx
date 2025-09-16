@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
@@ -11,19 +12,10 @@ const ShopPage: React.FC = () => {
   const { products } = useAppContext();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // FIX: Using a Set and a loop to be explicit about types and avoid inference issues with array methods.
-  const categorySet = new Set<string>();
-  products.forEach(product => {
-    product.categories?.forEach(category => {
-      categorySet.add(category);
-    });
-  });
-  const categories: string[] = ['All', ...Array.from(categorySet).sort()];
+  const categories = ['All', ...Array.from(new Set(products.flatMap(p => p.categories || [])))];
   
-  // FIX: Added type assertion to correct the inferred type from `unknown` to `string | null`.
-  const selectedCategory = (searchParams.get('category') as string | null) || 'All';
-  // FIX: Explicitly setting the type for useState to string to resolve a potential type inference issue causing an error on the input's value prop.
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const selectedCategory = searchParams.get('category') || 'All';
+  const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -135,7 +127,7 @@ const ShopPage: React.FC = () => {
           <input
             type="text"
             value={searchQuery}
-            // FIX: Explicitly type the event to prevent TS from inferring it as `any` or `unknown`.
+            // FIX: Explicitly typed the event `e` to prevent `e.target.value` from being inferred as 'unknown'.
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
             placeholder="Search for products..."
             className="w-full py-3 pl-12 pr-4 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-primary transition-shadow"
