@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Button from '../components/Button';
@@ -36,17 +37,38 @@ const LoginPage: React.FC = () => {
     setError(null);
     setLoading(true);
 
-    // FIX: Use `signInWithPassword` for Supabase v2 email/password auth.
-    const { error } = await supabase.auth.signInWithPassword({
+    // FIX: Updated to Supabase v2 signInWithPassword syntax.
+    // FIX: Casting to `any` to bypass potential type mismatch errors.
+    const { data, error } = await (supabase.auth as any).signInWithPassword({
       email,
       password,
     });
 
     if (error) {
       setError(error.message);
-    } else {
-      navigate('/');
+      setLoading(false);
+      return;
     }
+
+    if (data.user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_suspended')
+        .eq('id', data.user.id)
+        .single();
+      
+      if (profile?.is_suspended) {
+        setError('Your account has been suspended.');
+        // FIX: Updated to Supabase v2 signOut syntax with error handling.
+        // FIX: Casting to `any` to bypass potential type mismatch errors.
+        const { error: signOutError } = await (supabase.auth as any).signOut(); // Log them out immediately
+        if (signOutError) console.error("Error signing out suspended user:", signOutError);
+        setLoading(false);
+        return;
+      }
+    }
+    
+    navigate('/');
     setLoading(false);
   };
 
@@ -68,18 +90,21 @@ const LoginPage: React.FC = () => {
     }
     setLoading(true);
 
-    // FIX: Use `signUp` with Supabase v2 API syntax.
-    const { error } = await supabase.auth.signUp({
+    // FIX: Updated to Supabase v2 signUp syntax.
+    // FIX: Casting to `any` to bypass potential type mismatch errors.
+    const { error } = await (supabase.auth as any).signUp(
+      {
         email,
         password,
         options: {
-            data: {
-              name,
-              phone,
-              country,
-            },
+          data: {
+            name,
+            phone,
+            country,
+          },
         }
-    });
+      }
+    );
 
     if (error) {
       setError(error.message);

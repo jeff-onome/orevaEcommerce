@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
@@ -33,7 +32,7 @@ const UserCart: React.FC = () => {
         return (item.sale_price && item.sale_price < item.price) ? item.sale_price : item.price;
     };
     
-    // FIX: Defensive check to prevent crashes from invalid cart data
+    // Defensive check to prevent crashes from invalid cart data
     const validCart = cart.filter(Boolean);
 
     const subtotal = validCart.reduce((sum, item) => sum + getItemPrice(item) * item.quantity, 0);

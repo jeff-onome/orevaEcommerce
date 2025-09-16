@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 
 const InstagramIcon: React.FC = () => (
@@ -38,9 +39,9 @@ const Footer: React.FC = () => {
         </div>
         <p>&copy; {new Date().getFullYear()} {siteContent?.site_name || 'E-Shop Pro'}. All Rights Reserved.</p>
         <div className="flex flex-col sm:flex-row items-center sm:space-y-0 space-y-2 justify-center sm:space-x-4 mt-4">
-          <a href="#" className="hover:text-secondary transition-colors">Privacy Policy</a>
-          <a href="#" className="hover:text-secondary transition-colors">Terms of Service</a>
-          <a href="#" className="hover:text-secondary transition-colors">Contact Us</a>
+          <Link to="/privacy-policy" className="hover:text-secondary transition-colors">Privacy Policy</Link>
+          <Link to="/terms-of-service" className="hover:text-secondary transition-colors">Terms of Service</Link>
+          <Link to="/contact" className="hover:text-secondary transition-colors">Contact Us</Link>
         </div>
       </div>
     </footer>

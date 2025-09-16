@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Product } from '../types';
 import Button from './Button';
 import { useAppContext } from '../context/AppContext';
-import ImageCropModal from './ImageCropModal';
+import { uploadImage } from '../utils/storage';
 
 type ProductFormData = Omit<Product, 'id' | 'created_at'> & { id?: number };
 
@@ -24,7 +24,7 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ onSubmit, initialDa
     stock: 0,
   });
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     if (initialData) {
@@ -55,21 +55,21 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ onSubmit, initialDa
     });
   };
   
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImageToCrop(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      setIsUploading(true);
+      try {
+        const publicUrl = await uploadImage(file, 'products');
+        setImagePreview(publicUrl);
+        setProduct(prev => ({ ...prev, image_url: publicUrl }));
+      } catch (error) {
+        console.error("Upload failed:", error);
+        alert('Image upload failed. Please try again.');
+      } finally {
+        setIsUploading(false);
+      }
     }
-  };
-
-  const handleCropComplete = (croppedDataUrl: string) => {
-    setImagePreview(croppedDataUrl);
-    setProduct(prev => ({ ...prev, image_url: croppedDataUrl }));
-    setImageToCrop(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -118,19 +118,13 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ onSubmit, initialDa
         
         <div>
           <label className="block text-sm font-medium text-gray-700">Product Image</label>
-          <input type="file" accept="image/*" onChange={handleFileChange} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-primary hover:file:bg-violet-100" />
-          {imagePreview && <img src={imagePreview} alt="Preview" className="mt-4 h-32 w-32 object-cover rounded-md" loading="lazy" decoding="async" />}
+          <input type="file" accept="image/*" onChange={handleFileChange} disabled={isUploading} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-primary hover:file:bg-violet-100" />
+          {isUploading && <p className="text-sm text-gray-500 mt-2">Uploading...</p>}
+          {imagePreview && !isUploading && <img src={imagePreview} alt="Preview" className="mt-4 h-32 w-32 object-cover rounded-md" loading="lazy" decoding="async" />}
         </div>
         
-        <Button type="submit">Save Product</Button>
+        <Button type="submit" isLoading={isUploading}>Save Product</Button>
       </form>
-      <ImageCropModal
-        isOpen={!!imageToCrop}
-        onClose={() => setImageToCrop(null)}
-        imageSrc={imageToCrop}
-        onCropComplete={handleCropComplete}
-        aspectRatio={1}
-      />
     </>
   );
 };

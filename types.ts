@@ -410,6 +410,55 @@ export type Database = {
           },
         ]
       }
+      // FIX: Added definitions for 'pages' and 'services' tables.
+      pages: {
+        Row: {
+          content: string | null
+          id: number
+          slug: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          content?: string | null
+          id?: number
+          slug: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          content?: string | null
+          id?: number
+          slug?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      services: {
+        Row: {
+          description: string | null
+          icon_name: string | null
+          id: number
+          is_active: boolean | null
+          title: string
+        }
+        Insert: {
+          description?: string | null
+          icon_name?: string | null
+          id?: number
+          is_active?: boolean | null
+          title: string
+        }
+        Update: {
+          description?: string | null
+          icon_name?: string | null
+          id?: number
+          is_active?: boolean | null
+          title?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -540,6 +589,10 @@ export type Promotion = Tables<'promotions'>;
 export type Category = Tables<'categories'>;
 export type TeamMember = Tables<'team_members'>;
 export type Review = Tables<'reviews'>;
+// FIX: Added Page and Service type exports.
+export type Page = Tables<'pages'>;
+export type Service = Tables<'services'>;
+
 
 // CartItem is a product with a quantity property, derived from cart_items table
 export interface CartItem extends Product {

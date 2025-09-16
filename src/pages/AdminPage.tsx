@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { AdminTab, Product, Profile, ThemeColors, Order, Promotion, OrderItem, TeamMember, SiteContent } from '../types';
 import { useAppContext } from '../context/AppContext';
@@ -8,7 +7,7 @@ import AdminProductForm from '../components/AdminProductForm';
 import Modal from '../components/Modal';
 import SimpleBarChart from '../components/SimpleBarChart';
 import AdminPromotionForm from '../components/AdminPromotionForm';
-import ImageCropModal from '../components/ImageCropModal';
+import { uploadImage } from '../utils/storage';
 
 const AdminPage: React.FC = () => {
   const { 
@@ -29,10 +28,12 @@ const AdminPage: React.FC = () => {
     addProduct,
     updateProduct,
     addPromotion,
-    deletePromotion
+    deletePromotion,
+    updateUserSuspension,
+    deleteUser,
   } = useAppContext();
   
-  const [activeTab, setActiveTab] = useState<AdminTab>(AdminTab.PRODUCTS);
+  const [activeTab, setActiveTab] = useState<AdminTab>(AdminTab.USERS);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
@@ -53,8 +54,12 @@ const AdminPage: React.FC = () => {
       secondary: initialSiteContent?.theme_secondary || '#ffab40',
       accent: initialSiteContent?.theme_accent || '#f50057'
   });
+  const [isUploading, setIsUploading] = useState(false);
+  
+  // User Management state
+  const [suspendingUser, setSuspendingUser] = useState<Profile | null>(null);
+  const [deletingUser, setDeletingUser] = useState<Profile | null>(null);
 
-  // Effect to sync local state with the global context state when it updates
   useEffect(() => {
     if (initialSiteContent) {
       setSiteContent(initialSiteContent);
@@ -88,10 +93,6 @@ const AdminPage: React.FC = () => {
     [AdminTab.USERS]: '',
     [AdminTab.ORDERS]: '',
   });
-  
-  // Image Cropping State
-  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
-  const [cropConfig, setCropConfig] = useState<{ callback: (img: string) => void; aspectRatio?: number } | null>(null);
 
   const handleSearchChange = (tab: AdminTab, query: string) => {
     setSearchQueries(prev => ({ ...prev, [tab]: query }));
@@ -141,11 +142,21 @@ const AdminPage: React.FC = () => {
     setIsEditCategoryModalOpen(true);
   };
   
-  const handleAddCategory = () => {
-    if (newCategoryName.trim()) {
-        addCategory(newCategoryName.trim());
+  const handleAddCategory = async () => {
+    const trimmedName = newCategoryName.trim();
+    if (!trimmedName) {
+        alert("Category name cannot be empty.");
+        return;
+    }
+    
+    const result = await addCategory(trimmedName);
+    
+    if (result.success) {
+        alert('Category added successfully!');
         setNewCategoryName('');
         setIsAddCategoryModalOpen(false);
+    } else {
+        alert(`Failed to add category: ${result.message}`);
     }
   };
 
@@ -205,42 +216,34 @@ const AdminPage: React.FC = () => {
     setSiteContent(prev => prev ? ({...prev, [field]: value }) : null);
   };
 
-  const handleStoryImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleStoryImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        setCropConfig({
-            callback: (img) => handleSiteContentChange('about_story_image_url', img),
-            aspectRatio: 1.5,
-        });
-        setImageToCrop(result);
-      };
-      reader.readAsDataURL(file);
+      setIsUploading(true);
+      try {
+        const publicUrl = await uploadImage(file, 'site-content');
+        handleSiteContentChange('about_story_image_url', publicUrl);
+      } catch (error) {
+        alert('Image upload failed. Please try again.');
+      } finally {
+        setIsUploading(false);
+      }
     }
   };
   
-  const handleTeamMemberImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTeamMemberImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && editingTeamMember) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        setCropConfig({
-            callback: (img) => setEditingTeamMember(p => p ? ({ ...p, image_url: img }) : null),
-            aspectRatio: 1,
-        });
-        setImageToCrop(result);
-      };
-      reader.readAsDataURL(file);
+      setIsUploading(true);
+      try {
+        const publicUrl = await uploadImage(file, 'team-members');
+        setEditingTeamMember(p => p ? ({ ...p, image_url: publicUrl }) : null);
+      } catch (error) {
+        alert('Image upload failed. Please try again.');
+      } finally {
+        setIsUploading(false);
+      }
     }
-  };
-
-  const handleCropComplete = (croppedImageUrl: string) => {
-    cropConfig?.callback(croppedImageUrl);
-    setImageToCrop(null);
-    setCropConfig(null);
   };
 
   const handleSaveTeamMember = () => {
@@ -271,6 +274,32 @@ const AdminPage: React.FC = () => {
         setTeamMembers(updatedMembers);
     }
   };
+
+  const handleSuspendClick = (user: Profile) => {
+    setSuspendingUser(user);
+  };
+
+  const confirmSuspend = async () => {
+    if (suspendingUser) {
+        await updateUserSuspension(suspendingUser.id, !suspendingUser.is_suspended);
+        setSuspendingUser(null);
+    }
+  };
+
+  const handleDeleteClick = (user: Profile) => {
+      setDeletingUser(user);
+  };
+
+  const confirmDelete = async () => {
+      if (deletingUser) {
+          const result = await deleteUser(deletingUser.id);
+          if (!result.success) {
+              alert(`Failed to delete user: ${result.message}`);
+          }
+          setDeletingUser(null);
+      }
+  };
+
 
   const renderContent = () => {
     switch (activeTab) {
@@ -387,7 +416,8 @@ const AdminPage: React.FC = () => {
         );
       case AdminTab.USERS:
         const filteredUsers = users.filter(user =>
-            (user.name || '').toLowerCase().includes(searchQueries[AdminTab.USERS].toLowerCase())
+            (user.name || '').toLowerCase().includes(searchQueries[AdminTab.USERS].toLowerCase()) ||
+            (user.email || '').toLowerCase().includes(searchQueries[AdminTab.USERS].toLowerCase())
         );
         return (
           <div>
@@ -395,7 +425,7 @@ const AdminPage: React.FC = () => {
                 <h3 className="text-2xl font-semibold">Manage Users</h3>
                 <input
                     type="text"
-                    placeholder="Search by name..."
+                    placeholder="Search by name or email..."
                     value={searchQueries[AdminTab.USERS]}
                     onChange={(e) => handleSearchChange(AdminTab.USERS, e.target.value)}
                     className="w-full md:w-64 p-2 border border-gray-300 rounded-md shadow-sm"
@@ -406,9 +436,9 @@ const AdminPage: React.FC = () => {
                     <thead className="bg-gray-200">
                         <tr>
                             <th className="py-3 px-4 text-left">Name</th>
-                            <th className="py-3 px-4 text-left">Phone</th>
-                            <th className="py-3 px-4 text-left">Country</th>
-                            <th className="py-3 px-4 text-left">Admin</th>
+                            <th className="py-3 px-4 text-left">Email</th>
+                            <th className="py-3 px-4 text-left">Status</th>
+                            <th className="py-3 px-4 text-left">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -416,12 +446,28 @@ const AdminPage: React.FC = () => {
                             filteredUsers.map((user: Profile) => (
                                 <tr key={user.id} className="border-b">
                                     <td className="py-3 px-4">{user.name || 'N/A'}</td>
-                                    <td className="py-3 px-4">{user.phone || 'N/A'}</td>
-                                    <td className="py-3 px-4">{user.country || 'N/A'}</td>
+                                    <td className="py-3 px-4 text-sm text-gray-600">{user.email || 'N/A'}</td>
                                     <td className="py-3 px-4">
-                                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${user.is_admin ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                                          {user.is_admin ? 'Yes' : 'No'}
-                                      </span>
+                                        <div className="flex flex-wrap gap-1">
+                                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${user.is_suspended ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
+                                                {user.is_suspended ? 'Suspended' : 'Active'}
+                                            </span>
+                                            {user.is_admin && (
+                                                <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                                    Admin
+                                                </span>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="py-3 px-4">
+                                        <div className="flex items-center space-x-4">
+                                            <button className="text-sm text-yellow-600 hover:text-yellow-900 font-medium" onClick={() => handleSuspendClick(user)}>
+                                                {user.is_suspended ? 'Unsuspend' : 'Suspend'}
+                                            </button>
+                                            <button className="text-sm text-red-600 hover:text-red-900 font-medium" onClick={() => handleDeleteClick(user)}>
+                                                Delete
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))
@@ -681,9 +727,10 @@ const AdminPage: React.FC = () => {
                                     <input type="text" id="storyTitle" value={siteContent.about_story_title || ''} onChange={(e) => handleSiteContentChange('about_story_title', e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm" />
                                 </div>
                                  <div>
-                                    <label htmlFor="storyImageUrl" className="block text-sm font-medium text-gray-700">Story Image</label>
-                                    <input type="file" id="storyImageUrl" accept="image/*" onChange={handleStoryImageChange} className="mt-1 block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-primary hover:file:bg-violet-100" />
-                                    {siteContent.about_story_image_url && <img src={siteContent.about_story_image_url} alt="Story preview" className="mt-2 h-32 w-auto rounded-md shadow-sm" loading="lazy" decoding="async" />}
+                                    <label htmlFor="storyImageUrl" className="block text-sm font-medium text-gray-700">Upload Your Image</label>
+                                    <input type="file" id="storyImageUrl" accept="image/*" onChange={handleStoryImageChange} disabled={isUploading} className="mt-1 block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-primary hover:file:bg-violet-100" />
+                                    {isUploading && siteContent.about_story_image_url && <p className="text-sm text-gray-500 mt-2">Uploading...</p>}
+                                    {siteContent.about_story_image_url && !isUploading && <img src={siteContent.about_story_image_url} alt="Story preview" className="mt-2 h-32 w-auto rounded-md shadow-sm" loading="lazy" decoding="async" />}
                                 </div>
                                 <div className="md:col-span-2">
                                     <label htmlFor="storyContent" className="block text-sm font-medium text-gray-700">Story Content</label>
@@ -737,7 +784,7 @@ const AdminPage: React.FC = () => {
                         </div>
                     </div>
 
-                    <Button onClick={handleContentSave} className="w-full text-lg py-3">Save All Changes</Button>
+                    <Button onClick={handleContentSave} isLoading={isUploading} className="w-full text-lg py-3">Save All Changes</Button>
                 </div>
             </div>
         );
@@ -896,16 +943,18 @@ const AdminPage: React.FC = () => {
               className="w-full p-2 border rounded"
             />
             <div>
-                <label className="block text-sm font-medium text-gray-700">Member Image</label>
+                <label className="block text-sm font-medium text-gray-700">Upload Your Image</label>
                 <input 
                 type="file"
                 accept="image/*"
                 onChange={handleTeamMemberImageChange}
+                disabled={isUploading}
                 className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-primary hover:file:bg-violet-100"
                 />
-                {editingTeamMember.image_url && <img src={editingTeamMember.image_url} alt="Preview" className="mt-2 h-24 w-24 rounded-full object-cover" loading="lazy" decoding="async" />}
+                {isUploading && <p className="text-sm text-gray-500 mt-2">Uploading...</p>}
+                {editingTeamMember.image_url && !isUploading && <img src={editingTeamMember.image_url} alt="Preview" className="mt-2 h-24 w-24 rounded-full object-cover" loading="lazy" decoding="async" />}
             </div>
-            <Button onClick={handleSaveTeamMember}>Save Member</Button>
+            <Button onClick={handleSaveTeamMember} isLoading={isUploading}>Save Member</Button>
           </div>
         </div>
       )}
@@ -957,16 +1006,28 @@ const AdminPage: React.FC = () => {
             </div>
         )}
     </Modal>
-    <ImageCropModal
-        isOpen={!!imageToCrop}
-        onClose={() => {
-            setImageToCrop(null);
-            setCropConfig(null);
-        }}
-        imageSrc={imageToCrop}
-        onCropComplete={handleCropComplete}
-        aspectRatio={cropConfig?.aspectRatio}
-    />
+    <Modal isOpen={!!suspendingUser} onClose={() => setSuspendingUser(null)}>
+        <h2 className="text-2xl font-bold mb-4">Confirm Action</h2>
+        <p className="text-gray-600 mb-6">
+            Are you sure you want to {suspendingUser?.is_suspended ? 'unsuspend' : 'suspend'} the account for "{suspendingUser?.name}"?
+        </p>
+        <div className="flex justify-end gap-4">
+            <Button variant="secondary" onClick={() => setSuspendingUser(null)}>Cancel</Button>
+            <Button variant={suspendingUser?.is_suspended ? 'primary' : 'danger'} onClick={confirmSuspend}>
+                {suspendingUser?.is_suspended ? 'Unsuspend' : 'Suspend'} Account
+            </Button>
+        </div>
+    </Modal>
+    <Modal isOpen={!!deletingUser} onClose={() => setDeletingUser(null)}>
+        <h2 className="text-2xl font-bold mb-4">Confirm Deletion</h2>
+        <p className="text-gray-600 mb-6">
+            Are you sure you want to permanently delete the account for "{deletingUser?.name}"? This action cannot be undone.
+        </p>
+        <div className="flex justify-end gap-4">
+            <Button variant="secondary" onClick={() => setDeletingUser(null)}>Cancel</Button>
+            <Button variant="danger" onClick={confirmDelete}>Delete User</Button>
+        </div>
+    </Modal>
     </div>
   );
 };

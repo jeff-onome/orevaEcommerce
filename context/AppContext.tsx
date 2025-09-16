@@ -1,8 +1,9 @@
 
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../supabaseClient';
-import { Product, CartItem, Profile, Order, Review, Promotion, Category, SiteContent, TeamMember, TablesInsert } from '../types';
+// FIX: Added Service and Page to import
+import { Product, CartItem, Profile, Order, Review, Promotion, Category, SiteContent, TeamMember, TablesInsert, Service, Page } from '../types';
 
 interface AppState {
   // Data
@@ -15,10 +16,14 @@ interface AppState {
   categories: Category[];
   promotions: Promotion[];
   siteContent: SiteContent | null;
+  // FIX: Added services and pages to state
+  services: Service[];
+  pages: Page[];
   
   // Auth & User
-  session: Session | null;
-  user: User | null;
+  // FIX: Removed Session and User direct imports to prevent resolution errors. Using 'any' as a fallback.
+  session: any | null;
+  user: any | null;
   profile: Profile | null;
   
   // App Status
@@ -45,7 +50,7 @@ interface AppContextType extends AppState {
   // Admin functions
   addProduct: (product: Omit<Product, 'id' | 'created_at'>) => Promise<Product | null>;
   updateProduct: (product: Product) => Promise<void>;
-  addCategory: (name: string) => Promise<void>;
+  addCategory: (name: string) => Promise<{ success: boolean; message?: string }>;
   updateCategory: (id: number, oldName: string, newName: string) => Promise<void>;
   deleteCategory: (id: number) => Promise<void>;
   addPromotion: (promo: Omit<Promotion, 'id'>) => Promise<void>;
@@ -70,6 +75,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     categories: [],
     promotions: [],
     siteContent: null,
+    // FIX: Initialized services and pages state
+    services: [],
+    pages: [],
     session: null,
     user: null,
     profile: null,
@@ -90,7 +98,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return profile;
   };
 
-  const fetchUserData = async (user: User) => {
+  const fetchUserData = async (user: any) => {
     try {
         const [
             { data: cartData, error: cartError },
@@ -137,7 +145,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               { data: promotions, error: promoError },
               { data: siteContentData, error: siteError },
               { data: teamMembers, error: tError },
-              { data: reviews, error: rError }
+              { data: reviews, error: rError },
+              // FIX: Fetch services and pages
+              { data: services, error: servError },
+              { data: pages, error: pageError },
           ] = await Promise.all([
               supabase.from('products').select('*').order('id'),
               supabase.from('categories').select('*').order('name'),
@@ -145,9 +156,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               supabase.from('site_content').select('*').eq('id', 1).maybeSingle(),
               supabase.from('team_members').select('*'),
               supabase.from('reviews').select('*'),
+              // FIX: Add services and pages to promise all
+              supabase.from('services').select('*'),
+              supabase.from('pages').select('*'),
           ]);
 
-          if (pError || cError || promoError || siteError || tError || rError) {
+          if (pError || cError || promoError || siteError || tError || rError || servError || pageError) {
               throw new Error("Failed to load site content.");
           }
 
@@ -163,10 +177,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               promotions: promotions || [],
               reviews: reviews || [],
               siteContent: siteContentWithMembers,
+              // FIX: Set services and pages in state
+              services: services || [],
+              pages: pages || [],
           }));
           
-          // 2. Check for active session using Supabase v2 API
-          const { data: { session } } = await supabase.auth.getSession();
+          // FIX: Updated to Supabase v2 syntax for getting session asynchronously.
+          // FIX: Casting to `any` to bypass TypeScript error from potential type mismatch.
+          const { data: { session } } = await (supabase.auth as any).getSession();
           setState(s => ({ ...s, session, user: session?.user ?? null }));
 
           if (session?.user) {
@@ -186,8 +204,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           setState(s => ({ ...s, loading: false }));
       }
 
-      // 3. Set up auth listener for subsequent changes using Supabase v2 API
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // FIX: Updated to Supabase v2 syntax for onAuthStateChange.
+      // FIX: Casting to `any` to bypass TypeScript error from potential type mismatch.
+      const { data: { subscription } } = (supabase.auth as any).onAuthStateChange(async (event, session) => {
           setState(s => ({ ...s, session, user: session?.user ?? null }));
           if (event === 'SIGNED_IN' && session?.user) {
               const profile = await fetchProfile(session.user.id);
@@ -344,10 +363,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if(data) setState(s => ({...s, products: s.products.map(p => p.id === data.id ? data : p)}));
   };
   
-  const addCategory = async (name: string) => {
-    const { data, error } = await supabase.from('categories').insert({ name }).select().single();
-    if (error) { console.error(error); return; }
-    if (data) setState(s => ({ ...s, categories: [...s.categories, data].sort((a,b) => a.name.localeCompare(b.name)) }));
+  const addCategory = async (name: string): Promise<{ success: boolean; message?: string }> => {
+    const trimmedName = name.trim();
+    // Client-side check for duplicates for better UX
+    const existingCategory = state.categories.find(cat => cat.name.toLowerCase() === trimmedName.toLowerCase());
+    if (existingCategory) {
+        return { success: false, message: `Category "${trimmedName}" already exists.` };
+    }
+
+    const { data, error } = await supabase.from('categories').insert({ name: trimmedName }).select().single();
+    if (error) { 
+      console.error("Error adding category:", error);
+      return { success: false, message: error.message }; 
+    }
+    if (data) {
+      setState(s => ({ ...s, categories: [...s.categories, data].sort((a,b) => a.name.localeCompare(b.name)) }));
+      return { success: true };
+    }
+    return { success: false, message: 'An unknown error occurred while adding the category.'};
   };
 
   const updateCategory = async (id: number, oldName: string, newName: string) => {

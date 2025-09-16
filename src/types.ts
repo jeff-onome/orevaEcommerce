@@ -1,4 +1,3 @@
-
 export type Json =
   | string
   | number
@@ -135,6 +134,30 @@ export type Database = {
           },
         ]
       }
+      pages: {
+        Row: {
+          content: string | null
+          id: number
+          slug: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          content?: string | null
+          id?: number
+          slug: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          content?: string | null
+          id?: number
+          slug?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           categories: string[] | null
@@ -174,22 +197,28 @@ export type Database = {
       profiles: {
         Row: {
           country: string | null
+          email: string | null
           id: string
           is_admin: boolean | null
+          is_suspended: boolean | null
           name: string | null
           phone: string | null
         }
         Insert: {
           country?: string | null
+          email?: string | null
           id: string
           is_admin?: boolean | null
+          is_suspended?: boolean | null
           name?: string | null
           phone?: string | null
         }
         Update: {
           country?: string | null
+          email?: string | null
           id?: string
           is_admin?: boolean | null
+          is_suspended?: boolean | null
           name?: string | null
           phone?: string | null
         }
@@ -281,6 +310,30 @@ export type Database = {
           },
         ]
       }
+      services: {
+        Row: {
+          description: string | null
+          icon_name: string | null
+          id: number
+          is_active: boolean | null
+          title: string
+        }
+        Insert: {
+          description?: string | null
+          icon_name?: string | null
+          id?: number
+          is_active?: boolean | null
+          title: string
+        }
+        Update: {
+          description?: string | null
+          icon_name?: string | null
+          id?: number
+          is_active?: boolean | null
+          title?: string
+        }
+        Relationships: []
+      }
       site_content: {
         Row: {
           about_story_content: string | null
@@ -292,6 +345,8 @@ export type Database = {
           contact_address: string | null
           contact_email: string | null
           contact_phone: string | null
+          contact_subtitle: string | null
+          contact_title: string | null
           hero_subtitle: string | null
           hero_title: string | null
           id: number
@@ -299,6 +354,8 @@ export type Database = {
           sales_banner_is_active: boolean | null
           sales_banner_subtitle: string | null
           sales_banner_title: string | null
+          services_subtitle: string | null
+          services_title: string | null
           site_name: string | null
           social_instagram: string | null
           social_tiktok: string | null
@@ -316,6 +373,8 @@ export type Database = {
           contact_address?: string | null
           contact_email?: string | null
           contact_phone?: string | null
+          contact_subtitle?: string | null
+          contact_title?: string | null
           hero_subtitle?: string | null
           hero_title?: string | null
           id?: number
@@ -323,6 +382,8 @@ export type Database = {
           sales_banner_is_active?: boolean | null
           sales_banner_subtitle?: string | null
           sales_banner_title?: string | null
+          services_subtitle?: string | null
+          services_title?: string | null
           site_name?: string | null
           social_instagram?: string | null
           social_tiktok?: string | null
@@ -340,6 +401,8 @@ export type Database = {
           contact_address?: string | null
           contact_email?: string | null
           contact_phone?: string | null
+          contact_subtitle?: string | null
+          contact_title?: string | null
           hero_subtitle?: string | null
           hero_title?: string | null
           id?: number
@@ -347,6 +410,8 @@ export type Database = {
           sales_banner_is_active?: boolean | null
           sales_banner_subtitle?: string | null
           sales_banner_title?: string | null
+          services_subtitle?: string | null
+          services_title?: string | null
           site_name?: string | null
           social_instagram?: string | null
           social_tiktok?: string | null
@@ -415,6 +480,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      delete_user: {
+        Args: {
+          user_id: string
+        }
+        Returns: undefined
+      }
       handle_new_user: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -441,6 +512,10 @@ export type Database = {
           email_change_token_current: string
           email_change_sent_at: string
         }
+      }
+      update_updated_at_column: {
+        Args: Record<PropertyKey, never>
+        Returns: unknown
       }
     }
     Enums: {
@@ -540,6 +615,8 @@ export type Promotion = Tables<'promotions'>;
 export type Category = Tables<'categories'>;
 export type TeamMember = Tables<'team_members'>;
 export type Review = Tables<'reviews'>;
+export type Service = Tables<'services'>;
+export type Page = Tables<'pages'>;
 
 // CartItem is a product with a quantity property, derived from cart_items table
 export interface CartItem extends Product {
@@ -573,4 +650,6 @@ export enum AdminTab {
   ANALYTICS = 'Analytics',
   SITE_CONTENT = 'Site Content',
   PROMOTIONS = 'Promotions',
+  SERVICES = 'Services',
+  PAGES = 'Pages',
 }

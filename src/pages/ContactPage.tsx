@@ -9,9 +9,9 @@ const ContactPage: React.FC = () => {
   return (
     <div className="bg-surface p-8 rounded-lg shadow-xl animate-fade-in">
       <div className="text-center mb-12">
-        <h1 className="text-4xl font-extrabold text-gray-900 mb-4">Contact Us</h1>
+        <h1 className="text-4xl font-extrabold text-gray-900 mb-4">{siteContent?.contact_title || 'Contact Us'}</h1>
         <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-          Have questions or feedback? We'd love to hear from you. Reach out to us through any of the methods below.
+          {siteContent?.contact_subtitle || "Have questions or feedback? We'd love to hear from you. Reach out to us through any of the methods below."}
         </p>
       </div>
 
@@ -55,7 +55,7 @@ const ContactPage: React.FC = () => {
             <input type="text" placeholder="Your Name" className="w-full p-3 border rounded-md focus:ring-2 focus:ring-primary" required />
             <input type="email" placeholder="Your Email" className="w-full p-3 border rounded-md focus:ring-2 focus:ring-primary" required />
             <input type="text" placeholder="Subject" className="w-full p-3 border rounded-md focus:ring-2 focus:ring-primary" />
-            <textarea placeholder="Your Message" rows={5} className="w-full p-3 border rounded-md focus:ring-2 focus:ring-primary" ></textarea>
+            <textarea placeholder="Your Message" rows={5} className="w-full p-3 border rounded-md focus:ring-2 focus:ring-primary"></textarea>
             <Button type="submit" className="w-full">Send Message</Button>
           </form>
         </div>

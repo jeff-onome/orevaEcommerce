@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, Link } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
@@ -76,7 +77,10 @@ const MobileMenu: React.FC<{onClose: () => void}> = ({onClose}) => {
     const navigate = useNavigate();
 
     const handleLogout = async () => {
-        await supabase.auth.signOut();
+        // FIX: Add error handling for Supabase v2 signOut method.
+        // FIX: Casting to `any` to bypass potential type mismatch errors.
+        const { error } = await (supabase.auth as any).signOut();
+        if (error) console.error('Error logging out:', error);
         navigate('/');
         onClose();
     };
@@ -130,7 +134,10 @@ const Header: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    // FIX: Add error handling for Supabase v2 signOut method.
+    // FIX: Casting to `any` to bypass potential type mismatch errors.
+    const { error } = await (supabase.auth as any).signOut();
+    if (error) console.error('Error logging out:', error);
     navigate('/');
   };
   

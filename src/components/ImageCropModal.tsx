@@ -1,7 +1,7 @@
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Modal from './Modal';
 import Button from './Button';
+import { dataUrlToBlob, uploadImage } from '../utils/storage';
 
 interface Crop {
   x: number;
@@ -16,6 +16,7 @@ interface ImageCropModalProps {
   imageSrc: string | null;
   onCropComplete: (croppedImageUrl: string) => void;
   aspectRatio?: number;
+  storagePath: string;
 }
 
 const ImageCropModal: React.FC<ImageCropModalProps> = ({
@@ -24,20 +25,24 @@ const ImageCropModal: React.FC<ImageCropModalProps> = ({
   imageSrc,
   onCropComplete,
   aspectRatio = 1,
+  storagePath,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(new Image());
   const [crop, setCrop] = useState<Crop | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const getCanvasCoordinates = (e: React.MouseEvent<HTMLCanvasElement>): { x: number; y: number } => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
     return {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
     };
   };
 
@@ -126,40 +131,51 @@ const ImageCropModal: React.FC<ImageCropModalProps> = ({
     setStartPos(null);
   };
 
-  const handleCropImage = () => {
+  const handleCropAndUpload = async () => {
     const canvas = canvasRef.current;
     const image = imageRef.current;
     if (!canvas || !crop || !image.src || crop.width === 0 || crop.height === 0) return;
 
-    const displayScale = Math.min(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
-    const dx = (canvas.width - image.naturalWidth * displayScale) / 2;
-    const dy = (canvas.height - image.naturalHeight * displayScale) / 2;
-    
-    const sourceX = (crop.x - dx) / displayScale;
-    const sourceY = (crop.y - dy) / displayScale;
-    const sourceWidth = crop.width / displayScale;
-    const sourceHeight = crop.height / displayScale;
+    setIsUploading(true);
+    try {
+        const displayScale = Math.min(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
+        const dx = (canvas.width - image.naturalWidth * displayScale) / 2;
+        const dy = (canvas.height - image.naturalHeight * displayScale) / 2;
+        
+        const sourceX = (crop.x - dx) / displayScale;
+        const sourceY = (crop.y - dy) / displayScale;
+        const sourceWidth = crop.width / displayScale;
+        const sourceHeight = crop.height / displayScale;
 
-    const cropCanvas = document.createElement('canvas');
-    cropCanvas.width = sourceWidth;
-    cropCanvas.height = sourceHeight;
-    const cropCtx = cropCanvas.getContext('2d');
-    
-    if (!cropCtx) return;
+        const cropCanvas = document.createElement('canvas');
+        cropCanvas.width = sourceWidth;
+        cropCanvas.height = sourceHeight;
+        const cropCtx = cropCanvas.getContext('2d');
+        
+        if (!cropCtx) return;
 
-    cropCtx.drawImage(
-      image,
-      sourceX,
-      sourceY,
-      sourceWidth,
-      sourceHeight,
-      0,
-      0,
-      sourceWidth,
-      sourceHeight
-    );
+        cropCtx.drawImage(
+          image,
+          sourceX,
+          sourceY,
+          sourceWidth,
+          sourceHeight,
+          0,
+          0,
+          sourceWidth,
+          sourceHeight
+        );
 
-    onCropComplete(cropCanvas.toDataURL('image/jpeg'));
+        const blob = await dataUrlToBlob(cropCanvas.toDataURL('image/jpeg'));
+        const publicUrl = await uploadImage(blob, storagePath);
+        onCropComplete(publicUrl);
+
+    } catch (error) {
+        console.error("Failed to upload image:", error);
+        alert("Image upload failed. Please try again.");
+    } finally {
+        setIsUploading(false);
+    }
   };
 
   return (
@@ -171,18 +187,18 @@ const ImageCropModal: React.FC<ImageCropModalProps> = ({
                 ref={canvasRef}
                 width={500}
                 height={400}
-                className="mx-auto bg-gray-200 cursor-crosshair rounded-md"
+                className="mx-auto bg-gray-200 cursor-crosshair rounded-md w-full"
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
             />
             <div className="flex justify-center gap-4 mt-6">
-                <Button variant="secondary" onClick={onClose}>
+                <Button variant="secondary" onClick={onClose} disabled={isUploading}>
                     Cancel
                 </Button>
-                <Button onClick={handleCropImage} disabled={!crop || crop.width === 0}>
-                    Crop & Save
+                <Button onClick={handleCropAndUpload} disabled={!crop || crop.width === 0 || isUploading} isLoading={isUploading}>
+                    Save
                 </Button>
             </div>
         </div>

@@ -141,11 +141,21 @@ const AdminPage: React.FC = () => {
     setIsEditCategoryModalOpen(true);
   };
   
-  const handleAddCategory = () => {
-    if (newCategoryName.trim()) {
-        addCategory(newCategoryName.trim());
+  const handleAddCategory = async () => {
+    const trimmedName = newCategoryName.trim();
+    if (!trimmedName) {
+        alert("Category name cannot be empty.");
+        return;
+    }
+    
+    const result = await addCategory(trimmedName);
+    
+    if (result.success) {
+        alert('Category added successfully!');
         setNewCategoryName('');
         setIsAddCategoryModalOpen(false);
+    } else {
+        alert(`Failed to add category: ${result.message}`);
     }
   };
 

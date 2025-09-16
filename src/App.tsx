@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, Suspense, lazy } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Header from './components/Header';
@@ -22,10 +23,11 @@ const OrderHistoryPage = lazy(() => import('./pages/OrderHistoryPage'));
 const OrderDetailsPage = lazy(() => import('./pages/OrderDetailsPage'));
 const UserProfilePage = lazy(() => import('./pages/UserProfilePage'));
 const WishlistPage = lazy(() => import('./pages/WishlistPage'));
+const GenericPage = lazy(() => import('./pages/GenericPage'));
 
 
 const App: React.FC = () => {
-  const { loading, siteContent, profile, session } = useAppContext();
+  const { loading, siteContent, profile, session, error } = useAppContext();
 
   useEffect(() => {
     if (siteContent) {
@@ -43,6 +45,18 @@ const App: React.FC = () => {
         <Spinner />
       </div>
     );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col min-h-screen items-center justify-center text-center p-4">
+        <h1 className="text-2xl font-bold text-accent mb-4">Application Error</h1>
+        <p className="text-gray-700 mb-2">There was a problem loading the application.</p>
+        <pre className="bg-gray-100 p-4 rounded-md text-left text-sm text-red-700 whitespace-pre-wrap max-w-2xl w-full">
+          {error.message}
+        </pre>
+      </div>
+    )
   }
 
   const isAuthenticated = !!session;
@@ -64,6 +78,8 @@ const App: React.FC = () => {
                 <Route path="/about" element={<AboutPage />} />
                 <Route path="/services" element={<ServicesPage />} />
                 <Route path="/contact" element={<ContactPage />} />
+                <Route path="/privacy-policy" element={<GenericPage slug="privacy-policy" />} />
+                <Route path="/terms-of-service" element={<GenericPage slug="terms-of-service" />} />
                 
                 {/* Protected Routes */}
                 <Route path="/checkout" element={isAuthenticated ? <CheckoutPage /> : <Navigate to="/login" />} />

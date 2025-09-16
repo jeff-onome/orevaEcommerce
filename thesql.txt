@@ -11,25 +11,61 @@ insert into storage.buckets (id, name, public)
 values ('images', 'images', true)
 on conflict (id) do nothing;
 
--- 3. Profiles Table (for public user data, linked to auth.users)
+-- 3. Profiles Table & Auth Functions
 create table public.profiles (
   id uuid not null primary key references auth.users on delete cascade,
+  email text,
   name text,
   phone text,
   country text,
-  is_admin boolean default false
+  is_admin boolean default false,
+  is_suspended boolean default false
 );
--- Allow users to read their own profile
+
+-- Helper function to check if the current user is an admin
+-- This function must be defined BEFORE policies that use it.
+-- SECURITY DEFINER allows it to bypass RLS policies on the profiles table.
+create or replace function public.is_current_user_admin()
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (select is_admin from profiles where id = auth.uid()),
+    false
+  );
+$$;
+
+-- RPC function for deleting users (requires elevated privileges on Supabase)
+-- This function must be run by a role that has permission to delete from auth.users.
+-- A secure approach is to use an Edge Function with the service_role key.
+create or replace function public.delete_user(user_id uuid)
+returns void
+language plpgsql
+security definer
+as $$
+begin
+  if is_current_user_admin() then
+    delete from auth.users where id = user_id;
+  else
+    raise exception 'Permission denied: You must be an admin to delete users.';
+  end if;
+end;
+$$;
+
+-- RLS Policies for Profiles
 alter table public.profiles enable row level security;
 create policy "Users can view their own profile." on public.profiles for select using (auth.uid() = id);
 create policy "Users can update their own profile." on public.profiles for update using (auth.uid() = id);
+create policy "Admins can manage all profiles." on public.profiles for all using (is_current_user_admin());
 
 -- Function to create a profile when a new user signs up
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, name, phone, country, is_admin)
-  values (new.id, new.raw_user_meta_data->>'name', new.raw_user_meta_data->>'phone', new.raw_user_meta_data->>'country', false);
+  insert into public.profiles (id, email, name, phone, country, is_admin, is_suspended)
+  values (new.id, new.email, new.raw_user_meta_data->>'name', new.raw_user_meta_data->>'phone', new.raw_user_meta_data->>'country', false, false);
   return new;
 end;
 $$ language plpgsql security definer;
@@ -55,9 +91,7 @@ create table public.products (
 -- Allow public read access to products
 alter table public.products enable row level security;
 create policy "Products are publicly viewable." on public.products for select using (true);
-create policy "Admins can manage products." on public.products for all using (
-  (select is_admin from public.profiles where id = auth.uid()) = true
-);
+create policy "Admins can manage products." on public.products for all using (is_current_user_admin());
 
 -- 5. Categories Table
 create table public.categories (
@@ -67,9 +101,7 @@ create table public.categories (
 -- Allow public read access to categories
 alter table public.categories enable row level security;
 create policy "Categories are publicly viewable." on public.categories for select using (true);
-create policy "Admins can manage categories." on public.categories for all using (
-  (select is_admin from public.profiles where id = auth.uid()) = true
-);
+create policy "Admins can manage categories." on public.categories for all using (is_current_user_admin());
 
 
 -- 6. Promotions Table
@@ -87,9 +119,7 @@ create table public.promotions (
 -- Allow public read access
 alter table public.promotions enable row level security;
 create policy "Promotions are publicly viewable." on public.promotions for select using (true);
-create policy "Admins can manage promotions." on public.promotions for all using (
-  (select is_admin from public.profiles where id = auth.uid()) = true
-);
+create policy "Admins can manage promotions." on public.promotions for all using (is_current_user_admin());
 
 
 -- 7. Orders & Order Items
@@ -112,8 +142,8 @@ create table public.order_items (
 alter table public.orders enable row level security;
 create policy "Users can view their own orders." on public.orders for select using (auth.uid() = user_id);
 create policy "Users can create orders for themselves." on public.orders for insert with check (auth.uid() = user_id);
-create policy "Admins can view all orders." on public.orders for select using ((select is_admin from public.profiles where id = auth.uid()) = true);
-create policy "Admins can update order status." on public.orders for update using ((select is_admin from public.profiles where id = auth.uid()) = true);
+create policy "Admins can view all orders." on public.orders for select using (is_current_user_admin());
+create policy "Admins can update order status." on public.orders for update using (is_current_user_admin());
 
 alter table public.order_items enable row level security;
 create policy "Users can view items in their own orders." on public.order_items for select using (
@@ -122,8 +152,8 @@ create policy "Users can view items in their own orders." on public.order_items 
 create policy "Users can create order items for themselves." on public.order_items for insert with check (
   exists (select 1 from orders where orders.id = order_items.order_id and orders.user_id = auth.uid())
 );
-create policy "Admins can view all order items." on public.order_items for select using ((select is_admin from public.profiles where id = auth.uid()) = true);
-create policy "Admins can update order item status." on public.order_items for update using ((select is_admin from public.profiles where id = auth.uid()) = true);
+create policy "Admins can view all order items." on public.order_items for select using (is_current_user_admin());
+create policy "Admins can update order item status." on public.order_items for update using (is_current_user_admin());
 
 
 -- 8. Wishlist Table (Junction Table)
@@ -175,9 +205,7 @@ create table public.team_members (
 -- Allow public read access
 alter table public.team_members enable row level security;
 create policy "Team members are publicly viewable." on public.team_members for select using (true);
-create policy "Admins can manage team members." on public.team_members for all using (
-  (select is_admin from public.profiles where id = auth.uid()) = true
-);
+create policy "Admins can manage team members." on public.team_members for all using (is_current_user_admin());
 
 -- 12. Site Content Table (Single Row Table)
 create table public.site_content (
@@ -185,6 +213,8 @@ create table public.site_content (
   site_name text,
   hero_title text,
   hero_subtitle text,
+  contact_title text,
+  contact_subtitle text,
   contact_address text,
   contact_email text,
   contact_phone text,
@@ -196,6 +226,8 @@ create table public.site_content (
   about_story_content text,
   about_story_image_url text,
   about_team_title text,
+  services_title text,
+  services_subtitle text,
   sales_banner_title text,
   sales_banner_subtitle text,
   sales_banner_end_date timestamptz,
@@ -208,62 +240,69 @@ create table public.site_content (
 -- Policies for Site Content
 alter table public.site_content enable row level security;
 create policy "Site content is publicly viewable." on public.site_content for select using (true);
-create policy "Admins can manage site content." on public.site_content for all using (
-  (select is_admin from public.profiles where id = auth.uid()) = true
+create policy "Admins can manage site content." on public.site_content for all using (is_current_user_admin());
+
+-- 13. Services Table
+create table public.services (
+  id bigint generated by default as identity primary key,
+  title text not null,
+  description text,
+  icon_name text,
+  is_active boolean default true
 );
+-- Policies for Services
+alter table public.services enable row level security;
+create policy "Services are publicly viewable." on public.services for select using (true);
+create policy "Admins can manage services." on public.services for all using (is_current_user_admin());
+
+-- 14. Pages Table (for Privacy Policy, etc.)
+create table public.pages (
+  id bigint generated by default as identity primary key,
+  slug text not null unique,
+  title text not null,
+  content text,
+  updated_at timestamptz default now()
+);
+-- Policies for Pages
+alter table public.pages enable row level security;
+create policy "Pages are publicly viewable." on public.pages for select using (true);
+create policy "Admins can manage pages." on public.pages for all using (is_current_user_admin());
+-- Function to update the updated_at column
+create or replace function public.update_updated_at_column()
+returns trigger as $$
+begin
+   new.updated_at = now(); 
+   return new;
+end;
+$$ language 'plpgsql';
+-- Trigger for pages table
+create trigger handle_pages_update before update on public.pages
+  for each row execute procedure public.update_updated_at_column();
 
 
--- 13. INSERT Initial Data
--- This data matches the original mock data to keep the site looking the same on first load.
+-- 15. INSERT Initial Data
+-- This section provides essential starter data for the application to function.
 
--- Insert Categories
-insert into public.categories (name) values
-('Electronics'), ('Audio'), ('Furniture'), ('Smart Home'), ('Apparel'), ('Home Goods'), ('Fitness');
+-- Insert Pages (Legal placeholders)
+insert into public.pages (slug, title, content) values
+('privacy-policy', 'Privacy Policy', 'This is the placeholder for your Privacy Policy. Please replace this text with your own policy content. You can edit this from the admin dashboard under the "Pages" tab.'),
+('terms-of-service', 'Terms of Service', 'This is the placeholder for your Terms of Service. Please replace this text with your own terms. You can edit this from the admin dashboard under the "Pages" tab.');
 
--- Insert Products
-insert into public.products (name, price, sale_price, description, image_url, categories, stock) values
-('Quantum Laptop Pro', 1850000, 1750000, 'Experience blazing-fast performance with the new Quantum Laptop Pro. Featuring a 16-inch Retina display, the latest M-series chip, and all-day battery life.', 'https://picsum.photos/seed/laptop/600/600', '{"Electronics"}', 25),
-('Acoustic Bliss Headphones', 249999, null, 'Immerse yourself in pure audio with Acoustic Bliss Headphones. Noise-cancelling technology and superior comfort for an unparalleled listening experience.', 'https://picsum.photos/seed/headphones/600/600', '{"Audio"}', 50),
-('ErgoComfort Office Chair', 399000, null, 'Support your posture with the ErgoComfort Office Chair. Fully adjustable with lumbar support, breathable mesh, and a sleek, modern design.', 'https://picsum.photos/seed/chair/600/600', '{"Furniture"}', 15),
-('SmartHome Hub+', 129500, 110000, 'Control your entire home with the SmartHome Hub+. Compatible with all major smart devices, featuring voice control and customizable routines.', 'https://picsum.photos/seed/smarthome/600/600', '{"Smart Home"}', 75),
-('Velocity Running Shoes', 179999, null, 'Achieve your personal best with Velocity Running Shoes. Lightweight, responsive cushioning and a durable outsole for any terrain.', 'https://picsum.photos/seed/shoes/600/600', '{"Apparel"}', 120),
-('Gourmet Coffee Brewer', 89999, null, 'Brew the perfect cup every time with the Gourmet Coffee Brewer. Programmable settings and a sleek stainless steel design for your kitchen.', 'https://picsum.photos/seed/coffee/600/600', '{"Home Goods"}', 40),
-('Astro Gaming Headset', 199999, 179999, 'Crystal clear audio for competitive gaming. 7.1 surround sound and a pro-grade microphone.', 'https://picsum.photos/seed/astro/600/600', '{"Audio"}', 35),
-('Zen Garden Desk Set', 45000, null, 'Bring tranquility to your workspace with this miniature zen garden kit. Includes sand, rake, and stones.', 'https://picsum.photos/seed/zen/600/600', '{"Home Goods"}', 80),
-('Pro-Grip Dumbbell Set', 150000, null, 'Adjustable dumbbell set for a full-body workout at home. From 5kg to 25kg.', 'https://picsum.photos/seed/dumbbell/600/600', '{"Fitness"}', 20),
-('Solar Power Bank', 65000, null, 'Charge your devices on the go with this high-capacity solar-powered power bank. Rugged and waterproof.', 'https://picsum.photos/seed/solar/600/600', '{"Electronics"}', 90),
-('Leather Weekend Bag', 220000, null, 'Travel in style with this genuine leather weekend bag. Spacious, durable, and timeless design.', 'https://picsum.photos/seed/bag/600/600', '{"Apparel"}', 30),
-('Smart Water Bottle', 35000, null, 'Tracks your water intake and glows to remind you to stay hydrated throughout the day. Connects to your phone.', 'https://picsum.photos/seed/bottle/600/600', '{"Smart Home"}', 60),
-('Nordic Throw Blanket', 75000, 65000, 'Cozy up with this soft, woven throw blanket. Perfect for a chic and comfortable living room accent.', 'https://picsum.photos/seed/blanket/600/600', '{"Home Goods"}', 55);
-
--- Insert Promotions
-insert into public.promotions (title, description, image_url, is_active, discount_percentage, target_category, cta_text, cta_link) values
-('Black Friday Madness', 'Unbeatable deals on all electronics. Get up to 25% off now!', 'https://picsum.photos/seed/promo1/1200/400', false, 25, 'Electronics', 'Shop Electronics', '/shop'),
-('Summer Fashion Sale', 'Refresh your wardrobe with our new summer collection. Prices you''ll love.', 'https://picsum.photos/seed/promo2/1200/400', true, 20, 'Apparel', 'Explore Apparel', '/shop');
-
--- Insert Team Members
-insert into public.team_members (name, title, image_url) values
-('Jane Doe', 'Founder & CEO', 'https://picsum.photos/seed/ceo/200/200'),
-('John Smith', 'Chief Technology Officer', 'https://picsum.photos/seed/cto/200/200'),
-('Emily White', 'Chief Marketing Officer', 'https://picsum.photos/seed/cmo/200/200');
-
--- Insert Site Content
+-- Insert Site Content (minimal for app functionality)
 insert into public.site_content (
-  id, site_name, hero_title, hero_subtitle,
-  contact_address, contact_email, contact_phone,
-  social_instagram, social_tiktok,
-  about_title, about_subtitle, about_story_title, about_story_content, about_story_image_url, about_team_title,
-  sales_banner_title, sales_banner_subtitle, sales_banner_end_date, sales_banner_is_active,
-  theme_primary, theme_secondary, theme_accent
+  id, site_name, theme_primary, theme_secondary, theme_accent,
+  hero_title, hero_subtitle,
+  contact_title, contact_subtitle, contact_address, contact_email, contact_phone,
+  about_title, about_subtitle, about_team_title,
+  services_title, services_subtitle,
+  sales_banner_is_active
 ) values (
-  1, 'E-Shop Pro', 'Discover Our New Collection', 'Shop the latest trends and find your perfect style.',
-  '123 Quantum Plaza, Tech City, 98765', 'support@eshopro.com', '(555) 123-4567',
-  'EShopPro', '@eshopro.official',
-  'About E-Shop Pro', 'We believe in quality, innovation, and customer satisfaction. E-Shop Pro was founded to bring you the latest and greatest products with a seamless shopping experience.',
-  'Our Story', 'Founded in a small garage with a big dream, E-Shop Pro started with a simple idea: to make high-quality products accessible to everyone. We''ve grown since then, but our core values remain the same. We meticulously source and curate our collection, ensuring that every item we sell meets our high standards of quality and design.',
-  'https://picsum.photos/seed/store/600/400', 'Meet the Team',
-  'Up to 40% Off Wigs', 'Free Shipping Over ₦50,000', (now() + interval '3 days'), true,
-  '#1a237e', '#ffab40', '#f50057'
+  1, 'E-Shop Pro', '#1a237e', '#ffab40', '#f50057',
+  'Your Store, Your Style', 'Start building your dream e-commerce site.',
+  'Contact Us', 'Get in touch with us.', '123 Main Street', 'contact@example.com', '555-1234',
+  'About Us', 'Tell your story here.', 'Meet the Team',
+  'Our Services', 'Describe the services you offer.',
+  false
 );
 
 -- Note: User data is handled by Supabase Auth. You will need to create users through the sign-up form.
